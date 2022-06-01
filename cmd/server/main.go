@@ -38,25 +38,29 @@ func updCounter(name string, val int64) {
 func hdlrUpdate(ww http.ResponseWriter, rr *http.Request) {
 	s := strings.Split(rr.URL.String(), "/")
 	action := s[1]
+	metricType := s[2]
+	metricName := s[3]
+	metricVal := s[4]
 	if action != "update" {
 		http.Error(ww, "cannot handle such action", http.StatusNotFound)
 		return
 	}
-	metricType := s[2]
-	metricName := s[3]
-	metricVal := s[4]
+	if metricName == "" {
+		http.Error(ww, "no metric id", http.StatusNotFound)
+		return
+	}
 	switch metricType {
 	case "gauge":
 		val, err := strconv.ParseFloat(metricVal, 64)
 		if err != nil {
-			http.Error(ww, err.Error(), http.StatusBadRequest)
+			http.Error(ww, err.Error(), http.StatusNotFound)
 			return
 		}
 		updGauge(metricName, val)
 	case "counter":
 		val, err := strconv.ParseInt(metricVal, 10, 64)
 		if err != nil {
-			http.Error(ww, err.Error(), http.StatusBadRequest)
+			http.Error(ww, err.Error(), http.StatusNotFound)
 		}
 		updCounter(metricName, val)
 	default:
