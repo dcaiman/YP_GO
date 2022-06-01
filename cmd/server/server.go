@@ -11,67 +11,123 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-var srvAddr = "127.0.0.1:8080"
-
-var Gauges = struct {
+var Metrics = struct {
 	sync.RWMutex
-	m map[string]float64
-}{m: make(map[string]float64)}
+	Gauges   map[string]float64
+	Counters map[string]int64
+}{
+	Gauges:   map[string]float64{},
+	Counters: map[string]int64{},
+}
 
-var Counters = struct {
-	sync.RWMutex
-	m map[string]int64
-}{m: make(map[string]int64)}
+/*
+{
+	Gauges: map[string]float64{
+		"Alloc":         0,
+		"BuckHashSys":   0,
+		"Frees":         0,
+		"GCCPUFraction": 0,
+		"GCSys":         0,
+		"HeapAlloc":     0,
+		"HeapIdle":      0,
+		"HeapInuse":     0,
+		"HeapObjects":   0,
+		"HeapReleased":  0,
+		"HeapSys":       0,
+		"LastGC":        0,
+		"Lookups":       0,
+		"MCacheInuse":   0,
+		"MCacheSys":     0,
+		"MSpanInuse":    0,
+		"MSpanSys":      0,
+		"Mallocs":       0,
+		"NextGC":        0,
+		"NumForcedGC":   0,
+		"NumGC":         0,
+		"OtherSys":      0,
+		"PauseTotalNs":  0,
+		"StackInuse":    0,
+		"StackSys":      0,
+		"Sys":           0,
+		"TotalAlloc":    0,
+		"RandomValue":   0,
+	},
+	Counters: map[string]int64{
+		"PollCounter": 0,
+	},
+}
 
+func updGauge(name string, val float64) error {
+	Metrics.Lock()
+	defer Metrics.Unlock()
+	if _, ok := Metrics.Gauges[name]; ok {
+		Metrics.Gauges[name] = val
+		return nil
+	}
+	return fmt.Errorf("cannot update: no such gauge <%v>", name)
+}
+
+func updCounter(name string, val int64) error {
+	Metrics.Lock()
+	defer Metrics.Unlock()
+	if _, ok := Metrics.Counters[name]; ok {
+		Metrics.Counters[name] += val
+		return nil
+	}
+	return fmt.Errorf("cannot update: no such counter <%v>", name)
+}
+*/
 func updGauge(name string, val float64) {
-	Gauges.Lock()
-	Gauges.m[name] = val
-	Gauges.Unlock()
+	Metrics.Lock()
+	defer Metrics.Unlock()
+	Metrics.Gauges[name] = val
 }
 
 func updCounter(name string, val int64) {
-	Counters.Lock()
-	Counters.m[name] += val
-	Counters.Unlock()
+	Metrics.Lock()
+	defer Metrics.Unlock()
+	Metrics.Counters[name] += val
 }
 
 func getGauges() []string {
 	arr := []string{}
-	Gauges.RLock()
-	for k, v := range Gauges.m {
+	Metrics.RLock()
+	defer Metrics.RUnlock()
+	for k, v := range Metrics.Gauges {
 		arr = append(arr, k+": "+strconv.FormatFloat(v, 'f', 3, 64))
 	}
-	Gauges.RUnlock()
 	return arr
 }
 
 func getCounters() []string {
 	arr := []string{}
-	Counters.RLock()
-	for k, v := range Counters.m {
+	Metrics.RLock()
+	defer Metrics.RUnlock()
+	for k, v := range Metrics.Counters {
 		arr = append(arr, k+": "+strconv.FormatInt(v, 10))
 	}
-	Counters.RUnlock()
 	return arr
 }
 
 func getGauge(name string) (float64, error) {
-	Gauges.RLock()
-	if val, ok := Gauges.m[name]; ok {
+	Metrics.RLock()
+	defer Metrics.RUnlock()
+	if val, ok := Metrics.Gauges[name]; ok {
 		return val, nil
 	}
-	Gauges.RUnlock()
-	return 0, fmt.Errorf("no such metric name <%v>", name)
+	return 0, fmt.Errorf("cannot get: no such gauge <%v>", name)
 }
 
 func getCounter(name string) (int64, error) {
-	Counters.RLock()
-	if val, ok := Counters.m[name]; ok {
+	Metrics.RLock()
+	defer Metrics.RUnlock()
+	if val, ok := Metrics.Counters[name]; ok {
 		return val, nil
 	}
-	Counters.RUnlock()
-	return 0, fmt.Errorf("no such metric name <%v>", name)
+	return 0, fmt.Errorf("cannot get: no such counter <%v>", name)
 }
+
+var srvAddr = "127.0.0.1:8080"
 
 func main() {
 	mainRouter := chi.NewRouter()
@@ -98,13 +154,20 @@ func hdlrUpdate(ww http.ResponseWriter, rr *http.Request) {
 	metricVal := chi.URLParam(rr, "val")
 	switch metricType {
 	case "gauge":
-		val, _ := strconv.ParseFloat(metricVal, 64)
+		val, err := strconv.ParseFloat(metricVal, 64)
+		if err != nil {
+			http.Error(ww, err.Error(), http.StatusBadRequest)
+			return
+		}
 		updGauge(metricName, val)
 	case "counter":
-		val, _ := strconv.ParseInt(metricVal, 10, 64)
+		val, err := strconv.ParseInt(metricVal, 10, 64)
+		if err != nil {
+			http.Error(ww, err.Error(), http.StatusBadRequest)
+		}
 		updCounter(metricName, val)
 	default:
-		http.Error(ww, "can't handle this metric type", http.StatusBadRequest)
+		http.Error(ww, "cannot update: no such metric type <"+metricType+">", http.StatusNotImplemented)
 		return
 	}
 }
@@ -115,20 +178,20 @@ func hdlrGetMetric(ww http.ResponseWriter, rr *http.Request) {
 	switch metricType {
 	case "gauge":
 		if metricVal, err := getGauge(metricName); err == nil {
-			ww.Write([]byte(metricName + ": " + strconv.FormatFloat(metricVal, 'f', 3, 64)))
+			ww.Write([]byte(strconv.FormatFloat(metricVal, 'f', 3, 64)))
 		} else {
 			http.Error(ww, err.Error(), http.StatusNotFound)
 			return
 		}
 	case "counter":
 		if metricVal, err := getCounter(metricName); err == nil {
-			ww.Write([]byte(metricName + ": " + strconv.FormatInt(metricVal, 10)))
+			ww.Write([]byte(strconv.FormatInt(metricVal, 10)))
 		} else {
 			http.Error(ww, err.Error(), http.StatusNotFound)
 			return
 		}
 	default:
-		http.Error(ww, "no such metrics type <"+metricType+">", http.StatusNotFound)
+		http.Error(ww, "cannot get: no such metrics type <"+metricType+">", http.StatusNotImplemented)
 		return
 	}
 }
@@ -137,22 +200,11 @@ func hdlrGetMetricsByType(ww http.ResponseWriter, rr *http.Request) {
 	metricType := chi.URLParam(rr, "type")
 	switch metricType {
 	case "gauge":
-		list := getGauges()
-		if list != nil {
-			ww.Write([]byte("GAUGES LIST:\n\n" + strings.Join(list, "\n")))
-		} else {
-			http.Error(ww, "no metrics of type <"+metricType+">", http.StatusNotFound)
-			return
-		}
+		ww.Write([]byte("GAUGES LIST:\n\n" + strings.Join(getGauges(), "\n")))
 	case "counter":
-		list := getCounters()
-		if list != nil {
-			ww.Write([]byte("COUNTERS LIST:\n\n" + strings.Join(list, "\n")))
-		} else {
-			http.Error(ww, "no metrics of type <"+metricType+">", http.StatusNotFound)
-			return
-		}
+		ww.Write([]byte("COUNTERS LIST:\n\n" + strings.Join(getCounters(), "\n")))
 	default:
-		http.Error(ww, "no such metrics type <"+metricType+">", http.StatusNotFound)
+		http.Error(ww, "cannot get: no such metrics type <"+metricType+">", http.StatusNotFound)
+		return
 	}
 }
