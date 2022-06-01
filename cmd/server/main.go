@@ -37,6 +37,11 @@ func updCounter(name string, val int64) {
 
 func hdlrUpdate(ww http.ResponseWriter, rr *http.Request) {
 	s := strings.Split(rr.URL.String(), "/")
+	action := s[1]
+	if action != "update" {
+		http.Error(ww, "cannot handle such action", http.StatusNotFound)
+		return
+	}
 	metricType := s[2]
 	metricName := s[3]
 	metricVal := s[4]
@@ -55,7 +60,7 @@ func hdlrUpdate(ww http.ResponseWriter, rr *http.Request) {
 		}
 		updCounter(metricName, val)
 	default:
-		http.Error(ww, "cannot update: no such metric type <"+metricType+">", http.StatusNotFound)
+		http.Error(ww, "cannot update: no such metric type <"+metricType+">", http.StatusNotImplemented)
 		return
 	}
 }
