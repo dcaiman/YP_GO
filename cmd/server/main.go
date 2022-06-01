@@ -1,17 +1,31 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/go-chi/chi/v5"
 )
 
 var srvAddr = "127.0.0.1:8080"
 
 func main() {
-	http.HandleFunc("/", hdlrUpdate)
-	http.ListenAndServe(srvAddr, nil)
+	mainRouter := chi.NewRouter()
+	mainRouter.Route("/", func(r chi.Router) {
+		r.Get("/", hdlrGetAll)
+	})
+	mainRouter.Route("/value", func(r chi.Router) {
+		r.Get("/{type}", hdlrGetMetricsByType)
+		r.Get("/{type}/{name}", hdlrGetMetric)
+	})
+	mainRouter.Route("/update", func(r chi.Router) {
+		r.Post("/{type}/{name}/{val}", hdlrUpdate)
+	})
+
+	http.ListenAndServe(srvAddr, mainRouter)
 }
 
 var Metrics = struct {
@@ -35,20 +49,52 @@ func updCounter(name string, val int64) {
 	Metrics.Counters[name] += val
 }
 
+func getGauges() []string {
+	arr := []string{}
+	Metrics.RLock()
+	defer Metrics.RUnlock()
+	for k, v := range Metrics.Gauges {
+		arr = append(arr, k+": "+strconv.FormatFloat(v, 'f', 3, 64))
+	}
+	return arr
+}
+
+func getCounters() []string {
+	arr := []string{}
+	Metrics.RLock()
+	defer Metrics.RUnlock()
+	for k, v := range Metrics.Counters {
+		arr = append(arr, k+": "+strconv.FormatInt(v, 10))
+	}
+	return arr
+}
+
+func getGauge(name string) (float64, error) {
+	Metrics.RLock()
+	defer Metrics.RUnlock()
+	if val, ok := Metrics.Gauges[name]; ok {
+		return val, nil
+	}
+	return 0, fmt.Errorf("cannot get: no such gauge <%v>", name)
+}
+
+func getCounter(name string) (int64, error) {
+	Metrics.RLock()
+	defer Metrics.RUnlock()
+	if val, ok := Metrics.Counters[name]; ok {
+		return val, nil
+	}
+	return 0, fmt.Errorf("cannot get: no such counter <%v>", name)
+}
+
+func hdlrGetAll(ww http.ResponseWriter, rr *http.Request) {
+	ww.Write([]byte("METRICS LIST\n\n" + strings.Join(getGauges(), "\n") + "\n\n" + strings.Join(getCounters(), "\n")))
+}
+
 func hdlrUpdate(ww http.ResponseWriter, rr *http.Request) {
-	s := strings.Split(rr.URL.String(), "/")
-	if len(s) != 5 {
-		http.Error(ww, "cannot handle request", http.StatusNotFound)
-		return
-	}
-	action := s[1]
-	if action != "update" {
-		http.Error(ww, "cannot handle such action", http.StatusNotFound)
-		return
-	}
-	metricType := s[2]
-	metricName := s[3]
-	metricVal := s[4]
+	metricType := chi.URLParam(rr, "type")
+	metricName := chi.URLParam(rr, "name")
+	metricVal := chi.URLParam(rr, "val")
 	switch metricType {
 	case "gauge":
 		val, err := strconv.ParseFloat(metricVal, 64)
@@ -65,6 +111,43 @@ func hdlrUpdate(ww http.ResponseWriter, rr *http.Request) {
 		updCounter(metricName, val)
 	default:
 		http.Error(ww, "cannot update: no such metric type <"+metricType+">", http.StatusNotImplemented)
+		return
+	}
+}
+
+func hdlrGetMetric(ww http.ResponseWriter, rr *http.Request) {
+	metricType := chi.URLParam(rr, "type")
+	metricName := chi.URLParam(rr, "name")
+	switch metricType {
+	case "gauge":
+		if metricVal, err := getGauge(metricName); err == nil {
+			ww.Write([]byte(strconv.FormatFloat(metricVal, 'f', 3, 64)))
+		} else {
+			http.Error(ww, err.Error(), http.StatusNotFound)
+			return
+		}
+	case "counter":
+		if metricVal, err := getCounter(metricName); err == nil {
+			ww.Write([]byte(strconv.FormatInt(metricVal, 10)))
+		} else {
+			http.Error(ww, err.Error(), http.StatusNotFound)
+			return
+		}
+	default:
+		http.Error(ww, "cannot get: no such metrics type <"+metricType+">", http.StatusNotImplemented)
+		return
+	}
+}
+
+func hdlrGetMetricsByType(ww http.ResponseWriter, rr *http.Request) {
+	metricType := chi.URLParam(rr, "type")
+	switch metricType {
+	case "gauge":
+		ww.Write([]byte("GAUGES LIST:\n\n" + strings.Join(getGauges(), "\n")))
+	case "counter":
+		ww.Write([]byte("COUNTERS LIST:\n\n" + strings.Join(getCounters(), "\n")))
+	default:
+		http.Error(ww, "cannot get: no such metrics type <"+metricType+">", http.StatusNotFound)
 		return
 	}
 }
