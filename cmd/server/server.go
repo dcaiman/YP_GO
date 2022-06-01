@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"net/http"
@@ -8,7 +8,7 @@ import (
 
 var srvAddr = "127.0.0.1:8080"
 
-func main() {
+func RunServer() {
 	mainRouter := chi.NewRouter()
 	mainRouter.Route("/", func(r chi.Router) {
 		r.Get("/", hdlrGetAll)
