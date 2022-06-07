@@ -1,6 +1,5 @@
 package server
 
-/*
 import (
 	"testing"
 
@@ -9,13 +8,12 @@ import (
 
 func Test_updGauge(t *testing.T) {
 	var expected float64 = 5
-	updGauge("test", expected)
-	assert.Equal(t, Metrics.Gauges["test"], expected)
+	storage.updateGauge("test", expected)
+	assert.Equal(t, storage.Gauges["test"], expected)
 }
 
 func Test_updCounter(t *testing.T) {
 	var expected int64 = 5
-	updCounter("new", expected)
-	assert.Equal(t, Metrics.Counters["new"], expected)
+	storage.updateCounter("new", expected)
+	assert.Equal(t, storage.Counters["new"], expected)
 }
-*/
