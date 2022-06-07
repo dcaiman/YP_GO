@@ -54,7 +54,7 @@ func (m *Metrics) updateGauge(name string, val float64) {
 func (m *Metrics) updateCounter(name string, val int64) {
 	m.Lock()
 	defer m.Unlock()
-	m.Counters[name] = val
+	m.Counters[name] = +val
 }
 
 func (m *Metrics) getGauges() []string {
