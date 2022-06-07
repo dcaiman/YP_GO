@@ -57,7 +57,7 @@ func Test_getCounters(t *testing.T) {
 }
 
 func Test_getGauge(t *testing.T) {
-	var expected float64 = 0.5
+	var expected = 0.5
 	storage = Metrics{
 		Gauges: map[string]float64{
 			"g1": expected,
@@ -98,9 +98,10 @@ func Test_handlerGetAll(t *testing.T) {
 	defer testServer.Close()
 
 	res, err := http.Get(testServer.URL)
+	assert.NoError(t, err)
+	defer res.Body.Close()
 	resBody, _ := io.ReadAll(res.Body)
 
-	assert.NoError(t, err)
 	assert.Equal(t, expectedBody, string(resBody))
 	assert.Equal(t, expectedStatusCode, res.StatusCode)
 }
@@ -152,10 +153,11 @@ func Test_handlerUpdate(t *testing.T) {
 			defer testServer.Close()
 
 			res, err := http.Post(testServer.URL+currentTest.url, "", nil)
+			assert.NoError(t, err)
+			defer res.Body.Close()
 
 			actualValue, _ := storage.getGauge("g1")
 
-			assert.NoError(t, err)
 			assert.Equal(t, currentTest.expectedValue, actualValue)
 			assert.Equal(t, currentTest.expectedStatusCode, res.StatusCode)
 		})
@@ -210,8 +212,9 @@ func Test_handlerGetMetric(t *testing.T) {
 
 			res, err := http.Get(testServer.URL + currentTest.url)
 			resBody, _ := io.ReadAll(res.Body)
-
 			assert.NoError(t, err)
+			defer res.Body.Close()
+
 			assert.Equal(t, currentTest.expectedBody, string(resBody))
 			assert.Equal(t, currentTest.expectedStatusCode, res.StatusCode)
 		})
@@ -269,8 +272,9 @@ func Test_handlerGetMetricsByType(t *testing.T) {
 
 			res, err := http.Get(testServer.URL + currentTest.url)
 			resBody, _ := io.ReadAll(res.Body)
-
 			assert.NoError(t, err)
+			defer res.Body.Close()
+
 			assert.Equal(t, currentTest.expectedBody, string(resBody))
 			assert.Equal(t, currentTest.expectedStatusCode, res.StatusCode)
 		})
