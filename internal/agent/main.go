@@ -131,6 +131,12 @@ func (m *Metrics) updateCounter(name string) {
 	m.Counters[name] += 1
 }
 
+func (m *Metrics) resetCounter(name string) {
+	m.Lock()
+	defer m.Unlock()
+	m.Counters[name] = 0
+}
+
 func (m *Metrics) sendGauge(srvAddr, contentType, metricName string) error {
 	val, err := m.getGauge(metricName)
 	if err != nil {
@@ -154,6 +160,7 @@ func (m *Metrics) sendCounter(srvAddr, contentType, metricName string) error {
 		log.Println(err.Error())
 		return err
 	}
+	storage.resetCounter(metricName)
 	return nil
 }
 
