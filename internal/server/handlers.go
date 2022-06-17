@@ -26,6 +26,8 @@ func handlerUpdate(w http.ResponseWriter, r *http.Request) {
 		handlerUpdateText(w, r)
 	case jsonCT:
 		handlerUpdateJSON(w, r)
+	default:
+		handlerUpdateText(w, r)
 	}
 }
 
