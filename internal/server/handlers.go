@@ -1,4 +1,3 @@
-//
 package server
 
 import (
@@ -6,99 +5,10 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"sync"
 	"text/template"
 
 	"github.com/go-chi/chi/v5"
 )
-
-var srvAddr = "127.0.0.1:8080"
-var storage Metrics
-
-func RunServer() {
-	storage = Metrics{
-		Gauges:   map[string]float64{},
-		Counters: map[string]int64{},
-	}
-	mainRouter := chi.NewRouter()
-	mainRouter.Route("/", func(r chi.Router) {
-		r.Get("/", handlerGetAll)
-	})
-	mainRouter.Route("/value", func(r chi.Router) {
-		r.Get("/{type}", handlerGetMetricsByType)
-		r.Get("/{type}/{name}", handlerGetMetric)
-	})
-	mainRouter.Route("/update", func(r chi.Router) {
-		r.Post("/{type}/{name}/{val}", handlerUpdate)
-	})
-
-	http.ListenAndServe(srvAddr, mainRouter)
-}
-
-const (
-	Gauge   = "gauge"
-	Counter = "counter"
-)
-
-type Metrics struct {
-	sync.RWMutex
-	Gauges   map[string]float64
-	Counters map[string]int64
-}
-
-func (m *Metrics) updateGauge(name string, val float64) {
-	m.Lock()
-	defer m.Unlock()
-	m.Gauges[name] = val
-}
-
-func (m *Metrics) updateCounter(name string, val int64) {
-	m.Lock()
-	defer m.Unlock()
-	m.Counters[name] += val
-}
-
-func (m *Metrics) getGauges() []string {
-	arr := []string{}
-	m.RLock()
-	defer m.RUnlock()
-	for k, v := range m.Gauges {
-		arr = append(arr, k+": "+strconv.FormatFloat(v, 'f', 3, 64))
-	}
-	return arr
-}
-
-func (m *Metrics) getCounters() []string {
-	arr := []string{}
-	m.RLock()
-	defer m.RUnlock()
-	for k, v := range m.Counters {
-		arr = append(arr, k+": "+strconv.FormatInt(v, 10))
-	}
-	return arr
-}
-
-func (m *Metrics) getGauge(name string) (float64, error) {
-	m.RLock()
-	defer m.RUnlock()
-	if val, ok := m.Gauges[name]; ok {
-		return val, nil
-	}
-	err := errors.New("cannot get: no such gauge <" + name + ">")
-	log.Println(err.Error())
-	return 0, err
-}
-
-func (m *Metrics) getCounter(name string) (int64, error) {
-	m.RLock()
-	defer m.RUnlock()
-	if val, ok := m.Counters[name]; ok {
-		return val, nil
-	}
-	err := errors.New("cannot get: no such counter <" + name + ">")
-	log.Println(err.Error())
-	return 0, err
-}
 
 func handlerGetAll(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.New("").Parse("GAUGES LIST:\n{{range $v := .Gauges}}\n{{$v}}{{end}}\n\nCOUNTERS LIST:\n{{range $v := .Counters}}\n{{$v}}{{end}}")
@@ -111,6 +21,17 @@ func handlerGetAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlerUpdate(w http.ResponseWriter, r *http.Request) {
+	switch r.Header.Get("Content-Type") {
+	case textPlainCT:
+		handlerUpdateText(w, r)
+	case jsonCT:
+		handlerUpdateJson(w, r)
+	}
+}
+
+func handlerUpdateJson(w http.ResponseWriter, r *http.Request) {}
+
+func handlerUpdateText(w http.ResponseWriter, r *http.Request) {
 	metricType := chi.URLParam(r, "type")
 	metricName := chi.URLParam(r, "name")
 	metricVal := chi.URLParam(r, "val")
