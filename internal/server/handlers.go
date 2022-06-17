@@ -21,17 +21,6 @@ func handlerGetAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlerUpdate(w http.ResponseWriter, r *http.Request) {
-	switch r.Header.Get("Content-Type") {
-	case textPlainCT:
-		handlerUpdateText(w, r)
-	case jsonCT:
-		handlerUpdateJson(w, r)
-	}
-}
-
-func handlerUpdateJson(w http.ResponseWriter, r *http.Request) {}
-
-func handlerUpdateText(w http.ResponseWriter, r *http.Request) {
 	metricType := chi.URLParam(r, "type")
 	metricName := chi.URLParam(r, "name")
 	metricVal := chi.URLParam(r, "val")
