@@ -20,7 +20,7 @@ func handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mj := MetricJSON{}
-	if json.Unmarshal(content, &mj) != nil {
+	if err := json.Unmarshal(content, &mj); err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
