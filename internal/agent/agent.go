@@ -80,13 +80,14 @@ func poll() {
 		storage.updateGaugeByRuntimeValue(runtimeGauges[i])
 	}
 	storage.updateGaugeByRandomValue(customGauges[0])
-	storage.updateCounter(counters[0])
+	storage.updateCounter(counters[0], 1)
+	storage.updateMetricFromServer(srvAddr, "dummy", Gauge)
 }
 
 func report() {
-	go storage.sendCounter(srvAddr, textPlainCT, counters[0])
-	go storage.sendGauge(srvAddr, textPlainCT, customGauges[0])
+	go storage.sendCounter(srvAddr, jsonCT, counters[0])
+	go storage.sendGauge(srvAddr, jsonCT, customGauges[0])
 	for i := range runtimeGauges {
-		go storage.sendGauge(srvAddr, textPlainCT, runtimeGauges[i])
+		go storage.sendGauge(srvAddr, jsonCT, runtimeGauges[i])
 	}
 }

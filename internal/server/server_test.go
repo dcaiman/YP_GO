@@ -106,7 +106,7 @@ func Test_handlerGetAll(t *testing.T) {
 	assert.Equal(t, expectedStatusCode, res.StatusCode)
 }
 
-func Test_handlerUpdate(t *testing.T) {
+func Test_handlerUpdateDirect(t *testing.T) {
 	storage = Metrics{
 		Gauges: map[string]float64{
 			"g1": 5.5,
@@ -147,7 +147,7 @@ func Test_handlerUpdate(t *testing.T) {
 		t.Run(currentTest.name, func(t *testing.T) {
 			testRouter := chi.NewRouter()
 			testRouter.Route("/update", func(r chi.Router) {
-				r.Post("/{type}/{name}/{val}", handlerUpdate)
+				r.Post("/{type}/{name}/{val}", handlerUpdateDirect)
 			})
 			testServer := httptest.NewServer(testRouter)
 			defer testServer.Close()

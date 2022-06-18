@@ -20,11 +20,13 @@ func RunServer() {
 		r.Get("/", handlerGetAll)
 	})
 	mainRouter.Route("/value", func(r chi.Router) {
+		r.Post("/", handlerGetMetricJSON)
 		r.Get("/{type}", handlerGetMetricsByType)
 		r.Get("/{type}/{name}", handlerGetMetric)
 	})
 	mainRouter.Route("/update", func(r chi.Router) {
-		r.Post("/{type}/{name}/{val}", handlerUpdate)
+		r.Post("/", handlerUpdateJSON)
+		r.Post("/{type}/{name}/{val}", handlerUpdateDirect)
 	})
 
 	http.ListenAndServe(srvAddr, mainRouter)

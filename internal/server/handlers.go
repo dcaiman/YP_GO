@@ -1,7 +1,9 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -10,30 +12,33 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func handlerGetAll(w http.ResponseWriter, r *http.Request) {
-	t, _ := template.New("").Parse("GAUGES LIST:\n{{range $v := .Gauges}}\n{{$v}}{{end}}\n\nCOUNTERS LIST:\n{{range $v := .Counters}}\n{{$v}}{{end}}")
-	t.Execute(w, struct {
-		Gauges, Counters []string
-	}{
-		Gauges:   storage.getGauges(),
-		Counters: storage.getCounters(),
-	})
-}
-
-func handlerUpdate(w http.ResponseWriter, r *http.Request) {
-	switch r.Header.Get("Content-Type") {
-	case textPlainCT:
-		handlerUpdateText(w, r)
-	case jsonCT:
-		handlerUpdateJSON(w, r)
+func handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
+	content, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	mj := MetricJSON{}
+	if json.Unmarshal(content, &mj) != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	switch mj.MType {
+	case Gauge:
+		storage.updateGauge(mj.ID, *mj.Value)
+	case Counter:
+		storage.updateCounter(mj.ID, *mj.Delta)
 	default:
-		handlerUpdateText(w, r)
+		err := errors.New("cannot update: no such metric type <" + mj.ID + ">")
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusNotImplemented)
+		return
 	}
 }
 
-func handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {}
-
-func handlerUpdateText(w http.ResponseWriter, r *http.Request) {
+func handlerUpdateDirect(w http.ResponseWriter, r *http.Request) {
 	metricType := chi.URLParam(r, "type")
 	metricName := chi.URLParam(r, "name")
 	metricVal := chi.URLParam(r, "val")
@@ -59,6 +64,61 @@ func handlerUpdateText(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotImplemented)
 		return
 	}
+}
+
+func handlerGetAll(w http.ResponseWriter, r *http.Request) {
+	t, _ := template.New("").Parse("GAUGES LIST:\n{{range $v := .Gauges}}\n{{$v}}{{end}}\n\nCOUNTERS LIST:\n{{range $v := .Counters}}\n{{$v}}{{end}}")
+	t.Execute(w, struct {
+		Gauges, Counters []string
+	}{
+		Gauges:   storage.getGauges(),
+		Counters: storage.getCounters(),
+	})
+}
+
+func handlerGetMetricJSON(w http.ResponseWriter, r *http.Request) {
+	content, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	mj := MetricJSON{}
+	if err := json.Unmarshal(content, &mj); err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	switch mj.MType {
+	case Gauge:
+		val, err := storage.getGauge(mj.ID)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		mj.Value = &val
+	case Counter:
+		val, err := storage.getCounter(mj.ID)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		mj.Delta = &val
+	default:
+		err := errors.New("cannot get: no such metrics type <" + mj.MType + ">")
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusNotImplemented)
+		return
+	}
+	mjRes, err := json.Marshal(mj)
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Write(mjRes)
 }
 
 func handlerGetMetric(w http.ResponseWriter, r *http.Request) {

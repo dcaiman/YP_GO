@@ -20,6 +20,13 @@ type Metrics struct {
 	Counters map[string]int64
 }
 
+type MetricJSON struct {
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
+}
+
 func (m *Metrics) updateGauge(name string, val float64) {
 	m.Lock()
 	defer m.Unlock()
