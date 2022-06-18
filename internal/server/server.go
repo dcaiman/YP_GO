@@ -17,17 +17,15 @@ var cfg EnvConfig
 var storage Metrics
 
 func RunServer() {
-
 	storage = Metrics{
 		Gauges:   map[string]float64{},
 		Counters: map[string]int64{},
 	}
-
+	cfg = EnvConfig{
+		SrvAddr: "127.0.0.1:8080",
+	}
 	if err := env.Parse(&cfg); err != nil {
 		log.Println(err.Error())
-		cfg = EnvConfig{
-			SrvAddr: "127.0.0.1:8080",
-		}
 	}
 
 	mainRouter := chi.NewRouter()

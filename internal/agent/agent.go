@@ -63,13 +63,13 @@ func RunAgent() {
 		Gauges:   map[string]float64{},
 		Counters: map[string]int64{},
 	}
+	cfg = EnvConfig{
+		PollInterval:   3 * time.Second,
+		ReportInterval: 7 * time.Second,
+		SrvAddr:        "127.0.0.1:8080",
+	}
 	if err := env.Parse(&cfg); err != nil {
 		log.Println(err.Error())
-		cfg = EnvConfig{
-			PollInterval:   3 * time.Second,
-			ReportInterval: 7 * time.Second,
-			SrvAddr:        "127.0.0.1:8080",
-		}
 	}
 	fmt.Println(cfg)
 	signalCh := make(chan os.Signal, 1)
