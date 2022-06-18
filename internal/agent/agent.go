@@ -68,7 +68,7 @@ func RunAgent() {
 		cfg = EnvConfig{
 			PollInterval:   3 * time.Second,
 			ReportInterval: 7 * time.Second,
-			SrvAddr:        "http://127.0.0.1:8080",
+			SrvAddr:        "127.0.0.1:8080",
 		}
 	}
 	fmt.Println(cfg)

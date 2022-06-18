@@ -20,6 +20,7 @@ const (
 	Counter     = "counter"
 	textPlainCT = "text/plain"
 	jsonCT      = "application/json"
+	httpStr     = "http://"
 )
 
 type Metrics struct {
@@ -111,7 +112,7 @@ func (m *Metrics) updateMetricFromServer(srvAddr, mName, mType string) error {
 		log.Println(err.Error())
 		return err
 	}
-	res, err := http.Post(srvAddr+"/value/", jsonCT, bytes.NewBuffer(body))
+	res, err := http.Post(httpStr+srvAddr+"/value/", jsonCT, bytes.NewBuffer(body))
 	if err != nil {
 		log.Println(err.Error())
 		return err
@@ -206,7 +207,7 @@ func (m *Metrics) sendGauge(srvAddr, contentType, metricName string) error {
 		log.Println(err)
 		return err
 	}
-	res, err := http.Post(url, contentType, bytes.NewBuffer(body))
+	res, err := http.Post(httpStr+url, contentType, bytes.NewBuffer(body))
 	if err != nil {
 		log.Println(err.Error())
 		return err
@@ -241,7 +242,7 @@ func (m *Metrics) sendCounter(srvAddr, contentType, metricName string) error {
 		log.Println(err)
 		return err
 	}
-	res, err := http.Post(url, contentType, bytes.NewBuffer(body))
+	res, err := http.Post(httpStr+url, contentType, bytes.NewBuffer(body))
 	if err != nil {
 		log.Println(err.Error())
 		return err
