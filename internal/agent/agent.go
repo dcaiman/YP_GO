@@ -1,17 +1,18 @@
 package agent
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/caarlos0/env"
 )
 
-var pollInterval = 2 * time.Second
-var reportInterval = 10 * time.Second
-var srvAddr = "http://127.0.0.1:8080"
 var storage Metrics
+var cfg EnvConfig
 
 var runtimeGauges = [...]string{
 	"Alloc",
@@ -51,17 +52,31 @@ var counters = [...]string{
 	"PollCount",
 }
 
+type EnvConfig struct {
+	PollInterval   time.Duration `env:"POLL_INTERVAL"`
+	ReportInterval time.Duration `env:"REPORT_INTERVAL"`
+	SrvAddr        string        `env:"ADDRESS"`
+}
+
 func RunAgent() {
 	storage = Metrics{
 		Gauges:   map[string]float64{},
 		Counters: map[string]int64{},
 	}
-
+	if err := env.Parse(&cfg); err != nil {
+		log.Println(err.Error())
+		cfg = EnvConfig{
+			PollInterval:   3 * time.Second,
+			ReportInterval: 7 * time.Second,
+			SrvAddr:        "http://127.0.0.1:8080",
+		}
+	}
+	fmt.Println(cfg)
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	pollTimer := time.NewTicker(pollInterval)
-	reportTimer := time.NewTicker(reportInterval)
+	pollTimer := time.NewTicker(cfg.PollInterval)
+	reportTimer := time.NewTicker(cfg.ReportInterval)
 	for {
 		select {
 		case <-pollTimer.C:
@@ -81,13 +96,13 @@ func poll() {
 	}
 	storage.updateGaugeByRandomValue(customGauges[0])
 	storage.updateCounter(counters[0], 1)
-	storage.updateMetricFromServer(srvAddr, "kek", Gauge)
+	storage.updateMetricFromServer(cfg.SrvAddr, "testMetric", Gauge)
 }
 
 func report() {
-	go storage.sendCounter(srvAddr, jsonCT, counters[0])
-	go storage.sendGauge(srvAddr, jsonCT, customGauges[0])
+	go storage.sendCounter(cfg.SrvAddr, jsonCT, counters[0])
+	go storage.sendGauge(cfg.SrvAddr, jsonCT, customGauges[0])
 	for i := range runtimeGauges {
-		go storage.sendGauge(srvAddr, jsonCT, runtimeGauges[i])
+		go storage.sendGauge(cfg.SrvAddr, jsonCT, runtimeGauges[i])
 	}
 }
