@@ -94,7 +94,7 @@ func handlerGetMetricJSON(w http.ResponseWriter, r *http.Request) {
 		val, err := storage.getGauge(mj.ID)
 		if err != nil {
 			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		mj.Value = &val
@@ -102,7 +102,7 @@ func handlerGetMetricJSON(w http.ResponseWriter, r *http.Request) {
 		val, err := storage.getCounter(mj.ID)
 		if err != nil {
 			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		mj.Delta = &val
@@ -118,6 +118,7 @@ func handlerGetMetricJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	w.Header().Set("Content-Type", jsonCT)
 	w.Write(mjRes)
 }
 

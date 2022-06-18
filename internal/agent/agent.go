@@ -81,7 +81,7 @@ func poll() {
 	}
 	storage.updateGaugeByRandomValue(customGauges[0])
 	storage.updateCounter(counters[0], 1)
-	storage.updateMetricFromServer(srvAddr, "dummy", Gauge)
+	storage.updateMetricFromServer(srvAddr, "Alloc", Gauge)
 }
 
 func report() {

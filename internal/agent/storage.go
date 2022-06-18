@@ -117,6 +117,7 @@ func (m *Metrics) updateMetricFromServer(srvAddr, mName, mType string) error {
 		return err
 	}
 	defer res.Body.Close()
+	fmt.Println(res)
 	content, err := io.ReadAll(res.Body)
 	if err != nil {
 		log.Println(err.Error())
