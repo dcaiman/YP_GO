@@ -41,7 +41,7 @@ func (m *Metrics) UploadStorage(path string) error {
 	log.Println("UPLOAD TO: " + path)
 	m.RLock()
 	defer m.RUnlock()
-	file, err := os.Create("." + path)
+	file, err := os.OpenFile("."+path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
 	if err != nil {
 		log.Println(err.Error())
 		return err
