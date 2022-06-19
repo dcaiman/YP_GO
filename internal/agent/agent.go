@@ -2,7 +2,6 @@ package agent
 
 import (
 	"YP_GO_devops/internal/metrics"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -72,15 +71,10 @@ func RunAgent() {
 	if err := env.Parse(&cfg); err != nil {
 		log.Println(err.Error())
 	}
-	fmt.Println(cfg)
+	log.Println("AGENT CONFIG: ", cfg)
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	/*
-		storage.IncreaseCounter("test1", 33)
-		storage.IncreaseCounter("test2", 66)
-		go storage.SendMetric(cfg.SrvAddr, metrics.JSONCT, "test1", metrics.Counter)
-		go storage.SendMetric(cfg.SrvAddr, metrics.JSONCT, "test2", metrics.Counter)
-	*/
+
 	pollTimer := time.NewTicker(cfg.PollInterval)
 	reportTimer := time.NewTicker(cfg.ReportInterval)
 	for {

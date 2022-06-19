@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -39,7 +38,6 @@ type MetricJSON struct {
 }
 
 func (m *Metrics) UploadStorage(path string) error {
-	log.Println("UPLOAD TO: " + path)
 	m.Lock()
 	defer m.Unlock()
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
@@ -74,11 +72,11 @@ func (m *Metrics) UploadStorage(path string) error {
 			return err
 		}
 	}
+	log.Println("UPLOADED TO: " + path)
 	return nil
 }
 
 func (m *Metrics) DownloadStorage(path string) error {
-	log.Println("DOWNLOAD FROM: " + path)
 	file, err := os.Open(path)
 	if err != nil {
 		log.Println(err.Error())
@@ -89,6 +87,7 @@ func (m *Metrics) DownloadStorage(path string) error {
 	for b.Scan() {
 		m.UpdateMetricFromJSON(b.Bytes())
 	}
+	log.Println("DOWNLOADED FROM: " + path)
 	return nil
 }
 
@@ -155,7 +154,6 @@ func (m *Metrics) getGauge(name string) (float64, error) {
 	if val, ok := m.Gauges[name]; ok {
 		return val, nil
 	}
-	fmt.Println("4")
 	err := errors.New("cannot get: no such gauge <" + name + ">")
 	log.Println(err.Error())
 	return 0, err
