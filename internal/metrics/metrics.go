@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -39,8 +40,8 @@ type MetricJSON struct {
 
 func (m *Metrics) UploadStorage(path string) error {
 	log.Println("UPLOAD TO: " + path)
-	m.RLock()
-	defer m.RUnlock()
+	m.Lock()
+	defer m.Unlock()
 	file, err := os.OpenFile("."+path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
 	if err != nil {
 		log.Println(err.Error())
@@ -80,7 +81,7 @@ func (m *Metrics) DownloadStorage(path string) error {
 	log.Println("DOWNLOAD FROM: " + path)
 	file, err := os.Open("." + path)
 	if err != nil {
-		log.Println("os.Open, ", err.Error())
+		log.Println(err.Error())
 		return err
 	}
 	defer file.Close()
@@ -106,7 +107,7 @@ func getEmptyMetricJSON(mName, mType string) ([]byte, error) {
 func (m *Metrics) getMetricJSON(mName, mType string) ([]byte, error) {
 	switch mType {
 	case Gauge:
-		val, err := m.GetGauge(mName)
+		val, err := m.getGauge(mName)
 		if err != nil {
 			log.Println(err.Error())
 			return []byte{}, err
@@ -122,7 +123,7 @@ func (m *Metrics) getMetricJSON(mName, mType string) ([]byte, error) {
 		}
 		return mj, nil
 	case Counter:
-		val, err := m.GetCounter(mName)
+		val, err := m.getCounter(mName)
 		if err != nil {
 			log.Println(err.Error())
 			return []byte{}, err
@@ -145,19 +146,28 @@ func (m *Metrics) getMetricJSON(mName, mType string) ([]byte, error) {
 }
 
 func (m *Metrics) GetGauge(name string) (float64, error) {
-	m.RLock()
-	defer m.RUnlock()
+	m.Lock()
+	defer m.Unlock()
+	return m.getGauge(name)
+}
+
+func (m *Metrics) getGauge(name string) (float64, error) {
 	if val, ok := m.Gauges[name]; ok {
 		return val, nil
 	}
+	fmt.Println("4")
 	err := errors.New("cannot get: no such gauge <" + name + ">")
 	log.Println(err.Error())
 	return 0, err
 }
 
 func (m *Metrics) GetCounter(name string) (int64, error) {
-	m.RLock()
-	defer m.RUnlock()
+	m.Lock()
+	defer m.Unlock()
+	return m.getCounter(name)
+}
+
+func (m *Metrics) getCounter(name string) (int64, error) {
 	if val, ok := m.Counters[name]; ok {
 		return val, nil
 	}
@@ -168,8 +178,8 @@ func (m *Metrics) GetCounter(name string) (int64, error) {
 
 func (m *Metrics) GetGauges() []string {
 	arr := []string{}
-	m.RLock()
-	defer m.RUnlock()
+	m.Lock()
+	defer m.Unlock()
 	for k, v := range m.Gauges {
 		arr = append(arr, k+": "+strconv.FormatFloat(v, 'f', 3, 64))
 	}
@@ -178,8 +188,8 @@ func (m *Metrics) GetGauges() []string {
 
 func (m *Metrics) GetCounters() []string {
 	arr := []string{}
-	m.RLock()
-	defer m.RUnlock()
+	m.Lock()
+	defer m.Unlock()
 	for k, v := range m.Counters {
 		arr = append(arr, k+": "+strconv.FormatInt(v, 10))
 	}

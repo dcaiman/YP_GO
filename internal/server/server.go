@@ -3,7 +3,6 @@ package server
 
 import (
 	"YP_GO_devops/internal/metrics"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -34,17 +33,17 @@ func RunServer() {
 		StoreInterval: 0, //5 * time.Second,
 		StoreFile:     "/tmp/devops-metrics-db.json",
 		InitDownload:  true,
-		EnvConfig:     true,
+		EnvConfig:     false,
 	}
 	if cfg.EnvConfig {
 		if err := env.Parse(&cfg); err != nil {
-			log.Println("env.Parse", err.Error())
+			log.Println(err.Error())
 		}
 	}
 	if cfg.InitDownload && cfg.StoreFile != "" {
 		err := storage.DownloadStorage(cfg.StoreFile)
 		if err != nil {
-			log.Println("storage.DownloadStorage", err.Error())
+			log.Println(err.Error())
 		}
 	}
 	if cfg.StoreInterval != 0 {
@@ -54,14 +53,14 @@ func RunServer() {
 				<-uploadTimer.C
 				err := storage.UploadStorage(cfg.StoreFile)
 				if err != nil {
-					log.Println("storage.UploadStorage", err.Error())
+					log.Println(err.Error())
 				}
 			}
 		}()
 	} else {
 		cfg.SyncUpload = true
 	}
-	fmt.Println(cfg)
+	log.Println("SERVER CONFIG: ", cfg)
 
 	mainRouter := chi.NewRouter()
 	mainRouter.Route("/", func(r chi.Router) {
