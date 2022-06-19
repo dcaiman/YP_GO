@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"YP_GO_devops/internal/metrics"
 	"fmt"
 	"log"
 	"os"
@@ -11,7 +12,7 @@ import (
 	"github.com/caarlos0/env"
 )
 
-var storage Metrics
+var storage metrics.Metrics
 var cfg EnvConfig
 
 var runtimeGauges = [...]string{
@@ -59,7 +60,7 @@ type EnvConfig struct {
 }
 
 func RunAgent() {
-	storage = Metrics{
+	storage = metrics.Metrics{
 		Gauges:   map[string]float64{},
 		Counters: map[string]int64{},
 	}
@@ -92,17 +93,16 @@ func RunAgent() {
 
 func poll() {
 	for i := range runtimeGauges {
-		storage.updateGaugeByRuntimeValue(runtimeGauges[i])
+		storage.UpdateGaugeByRuntimeValue(runtimeGauges[i])
 	}
-	storage.updateGaugeByRandomValue(customGauges[0])
-	storage.updateCounter(counters[0], 1)
-	storage.updateMetricFromServer(cfg.SrvAddr, "testMetric", Gauge)
+	storage.UpdateGaugeByRandomValue(customGauges[0])
+	storage.IncreaseCounter(counters[0], 1)
 }
 
 func report() {
-	go storage.sendCounter(cfg.SrvAddr, jsonCT, counters[0])
-	go storage.sendGauge(cfg.SrvAddr, jsonCT, customGauges[0])
+	go storage.SendMetric(cfg.SrvAddr, metrics.JsonCT, counters[0], metrics.Counter)
+	go storage.SendMetric(cfg.SrvAddr, metrics.JsonCT, customGauges[0], metrics.Gauge)
 	for i := range runtimeGauges {
-		go storage.sendGauge(cfg.SrvAddr, jsonCT, runtimeGauges[i])
+		go storage.SendMetric(cfg.SrvAddr, metrics.JsonCT, runtimeGauges[i], metrics.Gauge)
 	}
 }

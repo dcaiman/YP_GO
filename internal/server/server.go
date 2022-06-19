@@ -2,30 +2,60 @@
 package server
 
 import (
+	"YP_GO_devops/internal/metrics"
+	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/caarlos0/env"
 	"github.com/go-chi/chi/v5"
 )
 
 type EnvConfig struct {
-	SrvAddr string `env:"ADDRESS"`
+	SrvAddr       string        `env:"ADDRESS"`
+	StoreInterval time.Duration `env:"STORE_INTERVAL"`
+	StoreFile     string        `env:"STORE_FILE"`
+	InitDownload  bool          `env:"RESTORE"`
+	EnvConfig     bool
 }
 
 var cfg EnvConfig
-var storage Metrics
+var storage metrics.Metrics
 
 func RunServer() {
-	storage = Metrics{
+	storage = metrics.Metrics{
 		Gauges:   map[string]float64{},
 		Counters: map[string]int64{},
 	}
 	cfg = EnvConfig{
-		SrvAddr: "127.0.0.1:8080",
+		SrvAddr:       "127.0.0.1:8080",
+		StoreInterval: 5 * time.Second,
+		StoreFile:     "/tmp/devops-metrics-db.json",
+		InitDownload:  false,
+		EnvConfig:     true,
 	}
-	if err := env.Parse(&cfg); err != nil {
-		log.Println(err.Error())
+	fmt.Println(cfg)
+	if cfg.EnvConfig {
+		if err := env.Parse(&cfg); err != nil {
+			log.Println(err.Error())
+		}
+	}
+	fmt.Println(cfg)
+	if cfg.InitDownload && cfg.StoreFile != "" {
+		err := storage.DownloadStorage(cfg.StoreFile)
+		if err != nil {
+			log.Println(err.Error())
+		}
+	}
+	if cfg.StoreInterval != 0 {
+		go func() {
+			uploadTimer := time.NewTicker(cfg.StoreInterval)
+			for {
+				<-uploadTimer.C
+				storage.UploadStorage(cfg.StoreFile)
+			}
+		}()
 	}
 
 	mainRouter := chi.NewRouter()

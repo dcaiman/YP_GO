@@ -1,6 +1,7 @@
 package server
 
 import (
+	"YP_GO_devops/internal/metrics"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,26 +11,26 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_updateGauge(t *testing.T) {
-	storage = Metrics{
+func Test_updateGaugeByValue(t *testing.T) {
+	storage = metrics.Metrics{
 		Gauges: map[string]float64{},
 	}
 	var expected float64 = 5
-	storage.updateGauge("test", expected)
+	storage.UpdateGaugeByValue("test", expected)
 	assert.Equal(t, expected, storage.Gauges["test"])
 }
 
-func Test_updateCounter(t *testing.T) {
-	storage = Metrics{
+func Test_updateCounterByValue(t *testing.T) {
+	storage = metrics.Metrics{
 		Counters: map[string]int64{},
 	}
 	var expected int64 = 5
-	storage.updateCounter("new", expected)
+	storage.UpdateCounterByValue("new", expected)
 	assert.Equal(t, expected, storage.Counters["new"])
 }
 
 func Test_getGauges(t *testing.T) {
-	storage = Metrics{
+	storage = metrics.Metrics{
 		Gauges: map[string]float64{
 			"g1": 0.5,
 			"g2": 5.5,
@@ -39,11 +40,11 @@ func Test_getGauges(t *testing.T) {
 		"g1: 0.500",
 		"g2: 5.500",
 	}
-	assert.ElementsMatch(t, expected, storage.getGauges())
+	assert.ElementsMatch(t, expected, storage.GetGauges())
 }
 
 func Test_getCounters(t *testing.T) {
-	storage = Metrics{
+	storage = metrics.Metrics{
 		Counters: map[string]int64{
 			"c1": 1,
 			"c2": 5,
@@ -53,33 +54,33 @@ func Test_getCounters(t *testing.T) {
 		"c1: 1",
 		"c2: 5",
 	}
-	assert.ElementsMatch(t, expected, storage.getCounters())
+	assert.ElementsMatch(t, expected, storage.GetCounters())
 }
 
 func Test_getGauge(t *testing.T) {
 	var expected = 0.5
-	storage = Metrics{
+	storage = metrics.Metrics{
 		Gauges: map[string]float64{
 			"g1": expected,
 		},
 	}
-	actual, _ := storage.getGauge("g1")
+	actual, _ := storage.GetGauge("g1")
 	assert.Equal(t, expected, actual)
 }
 
 func Test_getCounter(t *testing.T) {
 	var expected int64 = 5
-	storage = Metrics{
+	storage = metrics.Metrics{
 		Counters: map[string]int64{
 			"c1": expected,
 		},
 	}
-	actual, _ := storage.getCounter("c1")
+	actual, _ := storage.GetCounter("c1")
 	assert.Equal(t, expected, actual)
 }
 
 func Test_handlerGetAll(t *testing.T) {
-	storage = Metrics{
+	storage = metrics.Metrics{
 		Gauges: map[string]float64{
 			"g1": 5.5,
 		},
@@ -107,7 +108,7 @@ func Test_handlerGetAll(t *testing.T) {
 }
 
 func Test_handlerUpdateDirect(t *testing.T) {
-	storage = Metrics{
+	storage = metrics.Metrics{
 		Gauges: map[string]float64{
 			"g1": 5.5,
 		},
@@ -156,7 +157,7 @@ func Test_handlerUpdateDirect(t *testing.T) {
 			assert.NoError(t, err)
 			defer res.Body.Close()
 
-			actualValue, _ := storage.getGauge("g1")
+			actualValue, _ := storage.GetGauge("g1")
 
 			assert.Equal(t, currentTest.expectedValue, actualValue)
 			assert.Equal(t, currentTest.expectedStatusCode, res.StatusCode)
@@ -165,7 +166,7 @@ func Test_handlerUpdateDirect(t *testing.T) {
 }
 
 func Test_handlerGetMetric(t *testing.T) {
-	storage = Metrics{
+	storage = metrics.Metrics{
 		Gauges: map[string]float64{
 			"g1": 5.5,
 		},
@@ -222,7 +223,7 @@ func Test_handlerGetMetric(t *testing.T) {
 }
 
 func Test_handlerGetMetricsByType(t *testing.T) {
-	storage = Metrics{
+	storage = metrics.Metrics{
 		Gauges: map[string]float64{
 			"g1": 5.5,
 		},
