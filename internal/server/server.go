@@ -32,8 +32,8 @@ func RunServer() {
 		SrvAddr:       "127.0.0.1:8080",
 		StoreInterval: 5 * time.Second,
 		StoreFile:     "/tmp/devops-metrics-db.json",
-		InitDownload:  false,
-		EnvConfig:     true,
+		InitDownload:  true,
+		EnvConfig:     false,
 	}
 	fmt.Println(cfg)
 	if cfg.EnvConfig {

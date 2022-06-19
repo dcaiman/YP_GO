@@ -1,14 +1,15 @@
 package metrics
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -37,12 +38,56 @@ type MetricJSON struct {
 }
 
 func (m *Metrics) UploadStorage(path string) error {
-	log.Println("UPLOAD: " + path)
+	log.Println("UPLOAD TO: " + path)
+	m.RLock()
+	defer m.RUnlock()
+	file, err := os.Create("." + path)
+	if err != nil {
+		log.Println(err.Error())
+		return err
+	}
+	defer file.Close()
+	for key := range m.Gauges {
+		mj, err := m.getMetricJSON(key, Gauge)
+		if err != nil {
+			log.Println(err.Error())
+			return err
+		}
+		mj = append(mj, '\n')
+		_, err = file.Write(mj)
+		if err != nil {
+			log.Println(err.Error())
+			return err
+		}
+	}
+	for key := range m.Counters {
+		mj, err := m.getMetricJSON(key, Counter)
+		if err != nil {
+			log.Println(err.Error())
+			return err
+		}
+		mj = append(mj, '\n')
+		_, err = file.Write(mj)
+		if err != nil {
+			log.Println(err.Error())
+			return err
+		}
+	}
 	return nil
 }
 
 func (m *Metrics) DownloadStorage(path string) error {
-	log.Println("DOWNLOAD: " + path)
+	log.Println("DOWNLOAD FROM: " + path)
+	file, err := os.Open("." + path)
+	if err != nil {
+		log.Println(err.Error())
+		return err
+	}
+	defer file.Close()
+	b := bufio.NewScanner(file)
+	for b.Scan() {
+		m.UpdateMetricFromJSON(b.Bytes())
+	}
 	return nil
 }
 
@@ -59,39 +104,44 @@ func getEmptyMetricJSON(mName, mType string) ([]byte, error) {
 }
 
 func (m *Metrics) getMetricJSON(mName, mType string) ([]byte, error) {
-	var val float64
-	var delta int64
 	switch mType {
 	case Gauge:
-		tmp, err := m.GetGauge(mName)
+		val, err := m.GetGauge(mName)
 		if err != nil {
 			log.Println(err.Error())
 			return []byte{}, err
 		}
-		val = tmp
+		mj, err := json.Marshal(MetricJSON{
+			ID:    mName,
+			MType: mType,
+			Value: &val,
+		})
+		if err != nil {
+			log.Println(err.Error())
+			return []byte{}, err
+		}
+		return mj, nil
 	case Counter:
-		tmp, err := m.GetCounter(mName)
+		val, err := m.GetCounter(mName)
 		if err != nil {
 			log.Println(err.Error())
 			return []byte{}, err
 		}
-		delta = tmp
+		mj, err := json.Marshal(MetricJSON{
+			ID:    mName,
+			MType: mType,
+			Delta: &val,
+		})
+		if err != nil {
+			log.Println(err.Error())
+			return []byte{}, err
+		}
+		return mj, nil
 	default:
 		err := errors.New("unknown metric type <" + mType + ">")
 		log.Println(err)
 		return []byte{}, err
 	}
-	mj, err := json.Marshal(MetricJSON{
-		ID:    mName,
-		MType: mType,
-		Value: &val,
-		Delta: &delta,
-	})
-	if err != nil {
-		log.Println(err.Error())
-		return []byte{}, err
-	}
-	return mj, nil
 }
 
 func (m *Metrics) GetGauge(name string) (float64, error) {
@@ -136,6 +186,25 @@ func (m *Metrics) GetCounters() []string {
 	return arr
 }
 
+func (m *Metrics) UpdateMetricFromJSON(content []byte) error {
+	mj := MetricJSON{}
+	if err := json.Unmarshal(content, &mj); err != nil {
+		log.Println(err.Error())
+		return err
+	}
+	switch mj.MType {
+	case Gauge:
+		m.UpdateGaugeByValue(mj.ID, *mj.Value)
+	case Counter:
+		m.UpdateCounterByValue(mj.ID, *mj.Delta)
+	default:
+		err := errors.New("cannot update: unknown metric type <" + mj.ID + ">")
+		log.Println(err.Error())
+		return err
+	}
+	return nil
+}
+
 func (m *Metrics) UpdateMetricFromServer(srvAddr, mName, mType string) error {
 	body, err := getEmptyMetricJSON(mName, mType)
 	if err != nil {
@@ -153,19 +222,8 @@ func (m *Metrics) UpdateMetricFromServer(srvAddr, mName, mType string) error {
 		log.Println(err.Error())
 		return err
 	}
-	mj := MetricJSON{}
-	if err := json.Unmarshal(content, &mj); err != nil {
-		log.Println(err.Error())
-		return err
-	}
-	fmt.Println(mj)
-	switch mj.MType {
-	case Gauge:
-		m.UpdateGaugeByValue(mj.ID, *mj.Value)
-	case Counter:
-		m.UpdateCounterByValue(mj.ID, *mj.Delta)
-	default:
-		err := errors.New("cannot update: unknown metric type <" + mj.ID + ">")
+	m.UpdateMetricFromJSON(content)
+	if err != nil {
 		log.Println(err.Error())
 		return err
 	}
