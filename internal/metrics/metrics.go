@@ -19,8 +19,8 @@ const (
 	Gauge       = "gauge"
 	Counter     = "counter"
 	TextPlainCT = "text/plain"
-	JsonCT      = "application/json"
-	HttpStr     = "http://"
+	JSONCT      = "application/json"
+	HTTPStr     = "http://"
 )
 
 type Metrics struct {
