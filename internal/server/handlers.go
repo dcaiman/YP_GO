@@ -37,6 +37,9 @@ func handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotImplemented)
 		return
 	}
+	if cfg.SyncUpload {
+		storage.UploadStorage(cfg.StoreFile)
+	}
 }
 
 func handlerUpdateDirect(w http.ResponseWriter, r *http.Request) {
@@ -64,6 +67,9 @@ func handlerUpdateDirect(w http.ResponseWriter, r *http.Request) {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotImplemented)
 		return
+	}
+	if cfg.SyncUpload {
+		storage.UploadStorage(cfg.StoreFile)
 	}
 }
 

@@ -18,6 +18,7 @@ type EnvConfig struct {
 	StoreFile     string        `env:"STORE_FILE"`
 	InitDownload  bool          `env:"RESTORE"`
 	EnvConfig     bool
+	SyncUpload    bool
 }
 
 var cfg EnvConfig
@@ -30,18 +31,16 @@ func RunServer() {
 	}
 	cfg = EnvConfig{
 		SrvAddr:       "127.0.0.1:8080",
-		StoreInterval: 5 * time.Second,
-		StoreFile:     "/tmp/devops-metrics-db",
+		StoreInterval: 0, //5 * time.Second,
+		StoreFile:     "/tmp/devops-metrics-db.json",
 		InitDownload:  true,
 		EnvConfig:     true,
 	}
-	fmt.Println(cfg)
 	if cfg.EnvConfig {
 		if err := env.Parse(&cfg); err != nil {
 			log.Println("env.Parse", err.Error())
 		}
 	}
-	fmt.Println(cfg)
 	if cfg.InitDownload && cfg.StoreFile != "" {
 		err := storage.DownloadStorage(cfg.StoreFile)
 		if err != nil {
@@ -59,7 +58,10 @@ func RunServer() {
 				}
 			}
 		}()
+	} else {
+		cfg.SyncUpload = true
 	}
+	fmt.Println(cfg)
 
 	mainRouter := chi.NewRouter()
 	mainRouter.Route("/", func(r chi.Router) {
