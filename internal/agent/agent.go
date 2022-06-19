@@ -100,9 +100,9 @@ func poll() {
 }
 
 func report() {
-	go storage.SendMetric(cfg.SrvAddr, metrics.JsonCT, counters[0], metrics.Counter)
-	go storage.SendMetric(cfg.SrvAddr, metrics.JsonCT, customGauges[0], metrics.Gauge)
+	go storage.SendMetric(cfg.SrvAddr, metrics.JSONCT, counters[0], metrics.Counter)
+	go storage.SendMetric(cfg.SrvAddr, metrics.JSONCT, customGauges[0], metrics.Gauge)
 	for i := range runtimeGauges {
-		go storage.SendMetric(cfg.SrvAddr, metrics.JsonCT, runtimeGauges[i], metrics.Gauge)
+		go storage.SendMetric(cfg.SrvAddr, metrics.JSONCT, runtimeGauges[i], metrics.Gauge)
 	}
 }

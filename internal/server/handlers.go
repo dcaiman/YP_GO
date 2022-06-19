@@ -119,7 +119,7 @@ func handlerGetMetricJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	w.Header().Set("Content-Type", metrics.JsonCT)
+	w.Header().Set("Content-Type", metrics.JSONCT)
 	w.Write(mjRes)
 }
 

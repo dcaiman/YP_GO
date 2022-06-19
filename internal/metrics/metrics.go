@@ -142,7 +142,7 @@ func (m *Metrics) UpdateMetricFromServer(srvAddr, mName, mType string) error {
 		log.Println(err.Error())
 		return err
 	}
-	res, err := http.Post(HttpStr+srvAddr+"/value/", JsonCT, bytes.NewBuffer(body))
+	res, err := http.Post(HTTPStr+srvAddr+"/value/", JSONCT, bytes.NewBuffer(body))
 	if err != nil {
 		log.Println(err.Error())
 		return err
@@ -237,7 +237,7 @@ func (m *Metrics) SendMetric(srvAddr, contentType, mName, mType string) error {
 			log.Println(err)
 			return err
 		}
-	case JsonCT:
+	case JSONCT:
 		tmp, err := m.getMetricJSON(mName, mType)
 		if err != nil {
 			log.Println(err.Error())
@@ -250,7 +250,7 @@ func (m *Metrics) SendMetric(srvAddr, contentType, mName, mType string) error {
 		log.Println(err)
 		return err
 	}
-	res, err := http.Post(HttpStr+url, contentType, bytes.NewBuffer(body))
+	res, err := http.Post(HTTPStr+url, contentType, bytes.NewBuffer(body))
 	if err != nil {
 		log.Println(err.Error())
 		return err
