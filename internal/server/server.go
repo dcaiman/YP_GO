@@ -33,7 +33,7 @@ func RunServer() {
 		StoreInterval: 0, //5 * time.Second,
 		StoreFile:     "/tmp/devops-metrics-db.json",
 		InitDownload:  true,
-		EnvConfig:     false,
+		EnvConfig:     true,
 	}
 	if cfg.EnvConfig {
 		if err := env.Parse(&cfg); err != nil {
