@@ -31,21 +31,21 @@ func RunServer() {
 	cfg = EnvConfig{
 		SrvAddr:       "127.0.0.1:8080",
 		StoreInterval: 5 * time.Second,
-		StoreFile:     "/tmp/devops-metrics-db.json",
+		StoreFile:     "/tmp/devops-metrics-db",
 		InitDownload:  true,
 		EnvConfig:     true,
 	}
 	fmt.Println(cfg)
 	if cfg.EnvConfig {
 		if err := env.Parse(&cfg); err != nil {
-			log.Println(err.Error())
+			log.Println("env.Parse", err.Error())
 		}
 	}
 	fmt.Println(cfg)
 	if cfg.InitDownload && cfg.StoreFile != "" {
 		err := storage.DownloadStorage(cfg.StoreFile)
 		if err != nil {
-			log.Println(err.Error())
+			log.Println("storage.DownloadStorage", err.Error())
 		}
 	}
 	if cfg.StoreInterval != 0 {
@@ -53,7 +53,10 @@ func RunServer() {
 			uploadTimer := time.NewTicker(cfg.StoreInterval)
 			for {
 				<-uploadTimer.C
-				storage.UploadStorage(cfg.StoreFile)
+				err := storage.UploadStorage(cfg.StoreFile)
+				if err != nil {
+					log.Println("storage.UploadStorage", err.Error())
+				}
 			}
 		}()
 	}
