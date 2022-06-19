@@ -222,7 +222,7 @@ func (m *Metrics) UpdateMetricFromServer(srvAddr, mName, mType string) error {
 		log.Println(err.Error())
 		return err
 	}
-	m.UpdateMetricFromJSON(content)
+	err = m.UpdateMetricFromJSON(content)
 	if err != nil {
 		log.Println(err.Error())
 		return err
