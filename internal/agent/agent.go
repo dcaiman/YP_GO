@@ -76,7 +76,7 @@ func RunAgent() {
 	if cfg.ArgConfig {
 		flag.StringVar(&cfg.SrvAddr, "a", cfg.SrvAddr, "server address")
 		flag.DurationVar(&cfg.ReportInterval, "r", cfg.ReportInterval, "report interval")
-		flag.DurationVar(&cfg.PollInterval, "r", cfg.PollInterval, "poll interval")
+		flag.DurationVar(&cfg.PollInterval, "p", cfg.PollInterval, "poll interval")
 		flag.Parse()
 	}
 	if cfg.EnvConfig {
