@@ -3,6 +3,7 @@ package server
 
 import (
 	"YP_GO_devops/internal/metrics"
+	"flag"
 	"log"
 	"net/http"
 	"time"
@@ -17,6 +18,7 @@ type EnvConfig struct {
 	StoreFile     string        `env:"STORE_FILE"`
 	InitDownload  bool          `env:"RESTORE"`
 	EnvConfig     bool
+	ArgConfig     bool
 	SyncUpload    bool
 }
 
@@ -33,7 +35,15 @@ func RunServer() {
 		StoreInterval: 0,
 		StoreFile:     "/metricsStorage.json",
 		InitDownload:  true,
+		ArgConfig:     true,
 		EnvConfig:     true,
+	}
+	if cfg.ArgConfig {
+		flag.BoolVar(&cfg.InitDownload, "r", cfg.InitDownload, "initial download flag")
+		flag.StringVar(&cfg.StoreFile, "f", cfg.StoreFile, "storage file destination")
+		flag.StringVar(&cfg.SrvAddr, "a", cfg.SrvAddr, "server address")
+		flag.DurationVar(&cfg.StoreInterval, "i", cfg.StoreInterval, "store interval")
+		flag.Parse()
 	}
 	if cfg.EnvConfig {
 		if err := env.Parse(&cfg); err != nil {

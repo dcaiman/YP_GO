@@ -2,6 +2,7 @@ package agent
 
 import (
 	"YP_GO_devops/internal/metrics"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -56,6 +57,8 @@ type EnvConfig struct {
 	PollInterval   time.Duration `env:"POLL_INTERVAL"`
 	ReportInterval time.Duration `env:"REPORT_INTERVAL"`
 	SrvAddr        string        `env:"ADDRESS"`
+	EnvConfig      bool
+	ArgConfig      bool
 }
 
 func RunAgent() {
@@ -67,9 +70,19 @@ func RunAgent() {
 		PollInterval:   3 * time.Second,
 		ReportInterval: 7 * time.Second,
 		SrvAddr:        "127.0.0.1:8080",
+		ArgConfig:      true,
+		EnvConfig:      true,
 	}
-	if err := env.Parse(&cfg); err != nil {
-		log.Println(err.Error())
+	if cfg.ArgConfig {
+		flag.StringVar(&cfg.SrvAddr, "a", cfg.SrvAddr, "server address")
+		flag.DurationVar(&cfg.ReportInterval, "r", cfg.ReportInterval, "report interval")
+		flag.DurationVar(&cfg.PollInterval, "r", cfg.PollInterval, "poll interval")
+		flag.Parse()
+	}
+	if cfg.EnvConfig {
+		if err := env.Parse(&cfg); err != nil {
+			log.Println(err.Error())
+		}
 	}
 	log.Println("AGENT CONFIG: ", cfg)
 	signalCh := make(chan os.Signal, 1)
