@@ -1,7 +1,6 @@
 package server
 
 import (
-	"YP_GO_devops/internal/metrics"
 	"encoding/json"
 	"errors"
 	"io"
@@ -10,7 +9,15 @@ import (
 	"strconv"
 	"text/template"
 
+	"github.com/dcaiman/YP_GO/internal/metrics"
+
 	"github.com/go-chi/chi/v5"
+)
+
+const (
+	templateHandlerGetAll = "GAUGES LIST:\n{{range $v := .Gauges}}\n{{$v}}{{end}}\n\nCOUNTERS LIST:\n{{range $v := .Counters}}\n{{$v}}{{end}}"
+	templateGauges        = "GAUGES LIST:\n{{range $v := .}}\n{{$v}}{{end}}"
+	templateCounters      = "COUNTERS LIST:\n{{range $v := .}}\n{{$v}}{{end}}"
 )
 
 func handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +82,7 @@ func handlerUpdateDirect(w http.ResponseWriter, r *http.Request) {
 
 func handlerGetAll(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-	t, _ := template.New("").Parse("GAUGES LIST:\n{{range $v := .Gauges}}\n{{$v}}{{end}}\n\nCOUNTERS LIST:\n{{range $v := .Counters}}\n{{$v}}{{end}}")
+	t, _ := template.New("").Parse(templateHandlerGetAll)
 	t.Execute(w, struct {
 		Gauges, Counters []string
 	}{
@@ -162,10 +169,10 @@ func handlerGetMetricsByType(w http.ResponseWriter, r *http.Request) {
 	metricType := chi.URLParam(r, "type")
 	switch metricType {
 	case metrics.Gauge:
-		t, _ := template.New("").Parse("GAUGES LIST:\n{{range $v := .}}\n{{$v}}{{end}}")
+		t, _ := template.New("").Parse(templateGauges)
 		t.Execute(w, storage.GetGauges())
 	case metrics.Counter:
-		t, _ := template.New("").Parse("COUNTERS LIST:\n{{range $v := .}}\n{{$v}}{{end}}")
+		t, _ := template.New("").Parse(templateCounters)
 		t.Execute(w, storage.GetCounters())
 	default:
 		err := errors.New("cannot get: no such metrics type <" + metricType + ">")

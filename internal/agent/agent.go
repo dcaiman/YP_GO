@@ -1,13 +1,14 @@
 package agent
 
 import (
-	"YP_GO_devops/internal/metrics"
 	"flag"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/dcaiman/YP_GO/internal/metrics"
 
 	"github.com/caarlos0/env"
 )

@@ -2,11 +2,12 @@
 package server
 
 import (
-	"YP_GO_devops/internal/metrics"
 	"flag"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/dcaiman/YP_GO/internal/metrics"
 
 	"github.com/caarlos0/env"
 	"github.com/go-chi/chi/v5"

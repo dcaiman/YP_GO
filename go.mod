@@ -1,4 +1,4 @@
-module YP_GO_devops
+module github.com/dcaiman/YP_GO
 
 go 1.18
 

@@ -1,11 +1,12 @@
 package server
 
 import (
-	"YP_GO_devops/internal/metrics"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/dcaiman/YP_GO/internal/metrics"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -64,7 +65,8 @@ func Test_getGauge(t *testing.T) {
 			"g1": expected,
 		},
 	}
-	actual, _ := storage.GetGauge("g1")
+	actual, err := storage.GetGauge("g1")
+	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 }
 
@@ -75,7 +77,8 @@ func Test_getCounter(t *testing.T) {
 			"c1": expected,
 		},
 	}
-	actual, _ := storage.GetCounter("c1")
+	actual, err := storage.GetCounter("c1")
+	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 }
 
@@ -101,8 +104,9 @@ func Test_handlerGetAll(t *testing.T) {
 	res, err := http.Get(testServer.URL)
 	assert.NoError(t, err)
 	defer res.Body.Close()
-	resBody, _ := io.ReadAll(res.Body)
+	resBody, err := io.ReadAll(res.Body)
 
+	assert.NoError(t, err)
 	assert.Equal(t, expectedBody, string(resBody))
 	assert.Equal(t, expectedStatusCode, res.StatusCode)
 }
@@ -157,8 +161,9 @@ func Test_handlerUpdateDirect(t *testing.T) {
 			assert.NoError(t, err)
 			defer res.Body.Close()
 
-			actualValue, _ := storage.GetGauge("g1")
+			actualValue, err := storage.GetGauge("g1")
 
+			assert.NoError(t, err)
 			assert.Equal(t, currentTest.expectedValue, actualValue)
 			assert.Equal(t, currentTest.expectedStatusCode, res.StatusCode)
 		})
@@ -212,7 +217,8 @@ func Test_handlerGetMetric(t *testing.T) {
 			defer testServer.Close()
 
 			res, err := http.Get(testServer.URL + currentTest.url)
-			resBody, _ := io.ReadAll(res.Body)
+			assert.NoError(t, err)
+			resBody, err := io.ReadAll(res.Body)
 			assert.NoError(t, err)
 			defer res.Body.Close()
 
@@ -272,7 +278,8 @@ func Test_handlerGetMetricsByType(t *testing.T) {
 			defer testServer.Close()
 
 			res, err := http.Get(testServer.URL + currentTest.url)
-			resBody, _ := io.ReadAll(res.Body)
+			assert.NoError(t, err)
+			resBody, err := io.ReadAll(res.Body)
 			assert.NoError(t, err)
 			defer res.Body.Close()
 
