@@ -74,6 +74,7 @@ func handlerUpdateDirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlerGetAll(w http.ResponseWriter, r *http.Request) {
+	r.Header.Set("Content-Type", "html/text")
 	t, _ := template.New("").Parse("GAUGES LIST:\n{{range $v := .Gauges}}\n{{$v}}{{end}}\n\nCOUNTERS LIST:\n{{range $v := .Counters}}\n{{$v}}{{end}}")
 	t.Execute(w, struct {
 		Gauges, Counters []string
