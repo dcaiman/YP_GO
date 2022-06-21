@@ -31,6 +31,6 @@ func Compresser(handler http.HandlerFunc) http.HandlerFunc {
 		}
 		defer gzipWriter.Close()
 		w.Header().Set("Content-Encoding", "gzip")
-		handler.ServeHTTP(customWriter{Writer: gzipWriter}, r)
+		handler.ServeHTTP(customWriter{ResponseWriter: w, Writer: gzipWriter}, r)
 	}
 }
