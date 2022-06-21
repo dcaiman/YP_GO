@@ -74,16 +74,16 @@ func RunServer() {
 
 	mainRouter := chi.NewRouter()
 	mainRouter.Route("/", func(r chi.Router) {
-		r.Get("/", handlerGetAll)
+		r.Get("/", Compresser(handlerGetAll))
 	})
 	mainRouter.Route("/value", func(r chi.Router) {
-		r.Post("/", handlerGetMetricJSON)
-		r.Get("/{type}", handlerGetMetricsByType)
-		r.Get("/{type}/{name}", handlerGetMetric)
+		r.Post("/", Compresser(handlerGetMetricJSON))
+		r.Get("/{type}", Compresser(handlerGetMetricsByType))
+		r.Get("/{type}/{name}", Compresser(handlerGetMetric))
 	})
 	mainRouter.Route("/update", func(r chi.Router) {
-		r.Post("/", handlerUpdateJSON)
-		r.Post("/{type}/{name}/{val}", handlerUpdateDirect)
+		r.Post("/", Compresser(handlerUpdateJSON))
+		r.Post("/{type}/{name}/{val}", Compresser(handlerUpdateDirect))
 	})
 	log.Println(http.ListenAndServe(cfg.SrvAddr, mainRouter))
 }
