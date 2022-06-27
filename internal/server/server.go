@@ -34,7 +34,7 @@ func RunServer() {
 	cfg = EnvConfig{
 		SrvAddr:       "127.0.0.1:8080",
 		StoreInterval: 0,
-		StoreFile:     "/metricsStorage.json",
+		StoreFile:     "/metricStorage.json",
 		InitDownload:  true,
 		ArgConfig:     true,
 		EnvConfig:     true,

@@ -82,7 +82,12 @@ func handlerUpdateDirect(w http.ResponseWriter, r *http.Request) {
 
 func handlerGetAll(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-	t, _ := template.New("").Parse(templateHandlerGetAll)
+	t, err := template.New("").Parse(templateHandlerGetAll)
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	t.Execute(w, struct {
 		Gauges, Counters []string
 	}{
@@ -169,10 +174,20 @@ func handlerGetMetricsByType(w http.ResponseWriter, r *http.Request) {
 	metricType := chi.URLParam(r, "type")
 	switch metricType {
 	case metrics.Gauge:
-		t, _ := template.New("").Parse(templateGauges)
+		t, err := template.New("").Parse(templateGauges)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		t.Execute(w, storage.GetGauges())
 	case metrics.Counter:
-		t, _ := template.New("").Parse(templateCounters)
+		t, err := template.New("").Parse(templateCounters)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		t.Execute(w, storage.GetCounters())
 	default:
 		err := errors.New("cannot get: no such metrics type <" + metricType + ">")
