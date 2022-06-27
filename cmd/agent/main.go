@@ -1,6 +1,6 @@
 package main
 
-import "YP_GO_devops/internal/agent"
+import "github.com/dcaiman/YP_GO/internal/agent"
 
 func main() {
 	agent.RunAgent()

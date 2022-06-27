@@ -1,7 +1,7 @@
 package main
 
 import (
-	"YP_GO_devops/internal/server"
+	"github.com/dcaiman/YP_GO/internal/server"
 )
 
 func main() {
