@@ -296,7 +296,7 @@ func (m *Metrics) ResetCounter(name string) {
 }
 
 func (m *Metrics) SendMetric(srvAddr, contentType, mName, mType string) error {
-	var url, hash string = "", ""
+	var url, hash string
 	var body []byte
 	switch contentType {
 	case TextPlainCT:
