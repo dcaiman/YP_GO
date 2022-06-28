@@ -35,7 +35,7 @@ func RunServer() {
 	cfg = EnvConfig{
 		SrvAddr:       "127.0.0.1:8080",
 		StoreInterval: 0,
-		StoreFile:     "/metricStorage.json",
+		StoreFile:     "/tmp/metricStorage.json",
 		HashKey:       "key",
 		InitDownload:  true,
 		ArgConfig:     true,
@@ -75,6 +75,8 @@ func RunServer() {
 		cfg.SyncUpload = true
 	}
 	log.Println("SERVER CONFIG: ", cfg)
+
+	storage.EncryptingKey = cfg.HashKey
 
 	mainRouter := chi.NewRouter()
 	mainRouter.Route("/", func(r chi.Router) {

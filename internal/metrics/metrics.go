@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -28,8 +30,9 @@ const (
 
 type Metrics struct {
 	sync.RWMutex
-	Gauges   map[string]float64
-	Counters map[string]int64
+	EncryptingKey string
+	Gauges        map[string]float64
+	Counters      map[string]int64
 }
 
 type MetricJSON struct {
@@ -50,7 +53,7 @@ func (m *Metrics) UploadStorage(path string) error {
 	}
 	defer file.Close()
 	for key := range m.Gauges {
-		mj, err := m.getMetricJSON(key, Gauge)
+		mj, _, err := m.getMetricJSON(key, Gauge)
 		if err != nil {
 			log.Println(err.Error())
 			return err
@@ -63,7 +66,7 @@ func (m *Metrics) UploadStorage(path string) error {
 		}
 	}
 	for key := range m.Counters {
-		mj, err := m.getMetricJSON(key, Counter)
+		mj, _, err := m.getMetricJSON(key, Counter)
 		if err != nil {
 			log.Println(err.Error())
 			return err
@@ -106,44 +109,57 @@ func getEmptyMetricJSON(mName, mType string) ([]byte, error) {
 	return j, nil
 }
 
-func (m *Metrics) getMetricJSON(mName, mType string) ([]byte, error) {
+func (m *Metrics) getMetricJSON(mName, mType string) ([]byte, string, error) {
 	switch mType {
 	case Gauge:
 		val, err := m.getGauge(mName)
 		if err != nil {
 			log.Println(err.Error())
-			return []byte{}, err
+			return []byte{}, "", err
+		}
+		mjHash, err := hash(fmt.Sprintf("%s:gauge:%f", mName, val), m.EncryptingKey)
+		if err != nil {
+			log.Println(err.Error())
+			return []byte{}, "", err
 		}
 		mj, err := json.Marshal(MetricJSON{
 			ID:    mName,
 			MType: mType,
 			Value: &val,
+			Hash:  hex.EncodeToString(mjHash),
 		})
 		if err != nil {
 			log.Println(err.Error())
-			return []byte{}, err
+			return []byte{}, "", err
 		}
-		return mj, nil
+		return mj, hex.EncodeToString(mjHash), nil
 	case Counter:
 		val, err := m.getCounter(mName)
 		if err != nil {
 			log.Println(err.Error())
-			return []byte{}, err
+			return []byte{}, "", err
+		}
+		mjHash, err := hash(fmt.Sprintf("%s:counter:%d", mName, val), m.EncryptingKey)
+		fmt.Println(mjHash, mName, val, m.EncryptingKey)
+		if err != nil {
+			log.Println(err.Error())
+			return []byte{}, "", err
 		}
 		mj, err := json.Marshal(MetricJSON{
 			ID:    mName,
 			MType: mType,
 			Delta: &val,
+			Hash:  hex.EncodeToString(mjHash),
 		})
 		if err != nil {
 			log.Println(err.Error())
-			return []byte{}, err
+			return []byte{}, "", err
 		}
-		return mj, nil
+		return mj, hex.EncodeToString(mjHash), nil
 	default:
 		err := errors.New("unknown metric type <" + mType + ">")
 		log.Println(err)
-		return []byte{}, err
+		return []byte{}, "", err
 	}
 }
 
@@ -280,7 +296,7 @@ func (m *Metrics) ResetCounter(name string) {
 }
 
 func (m *Metrics) SendMetric(srvAddr, contentType, mName, mType string) error {
-	var url string
+	var url, hash string = "", ""
 	var body []byte
 	switch contentType {
 	case TextPlainCT:
@@ -307,21 +323,22 @@ func (m *Metrics) SendMetric(srvAddr, contentType, mName, mType string) error {
 			return err
 		}
 	case JSONCT:
-		tmp, err := m.getMetricJSON(mName, mType)
+		tmpBody, tmpHash, err := m.getMetricJSON(mName, mType)
 		if err != nil {
 			log.Println(err.Error())
 			return err
 		}
 		url = srvAddr + "/update/"
-		body = tmp
+		body = tmpBody
+		hash = tmpHash
 	default:
 		err := errors.New("unsupported content type <" + contentType + ">")
 		log.Println(err)
 		return err
 	}
-	res, err := customPostRequest(HTTPStr+url, contentType, "", bytes.NewBuffer(body))
+	res, err := customPostRequest(HTTPStr+url, contentType, hash, bytes.NewBuffer(body))
 	if err != nil {
-		log.Println(err.Error())
+		log.Println("!!!", err.Error())
 		return err
 	}
 	defer res.Body.Close()
@@ -347,11 +364,14 @@ func customPostRequest(url, contentType, hash string, body io.Reader) (resp *htt
 }
 
 func hash(source, key string) ([]byte, error) {
+	if key == "" {
+		return []byte{}, nil
+	}
 	h := hmac.New(sha256.New, []byte(key))
 	_, err := h.Write([]byte(source))
 	if err != nil {
 		log.Println(err.Error())
-		return nil, err
+		return []byte{}, err
 	}
 	return h.Sum(nil), nil
 }
