@@ -3,6 +3,8 @@ package metrics
 import (
 	"bufio"
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"io"
@@ -35,6 +37,7 @@ type MetricJSON struct {
 	MType string   `json:"type"`
 	Delta *int64   `json:"delta,omitempty"`
 	Value *float64 `json:"value,omitempty"`
+	Hash  string   `json:"hash,omitempty"`
 }
 
 func (m *Metrics) UploadStorage(path string) error {
@@ -316,7 +319,7 @@ func (m *Metrics) SendMetric(srvAddr, contentType, mName, mType string) error {
 		log.Println(err)
 		return err
 	}
-	res, err := http.Post(HTTPStr+url, contentType, bytes.NewBuffer(body))
+	res, err := customPostRequest(HTTPStr+url, contentType, "", bytes.NewBuffer(body))
 	if err != nil {
 		log.Println(err.Error())
 		return err
@@ -327,4 +330,28 @@ func (m *Metrics) SendMetric(srvAddr, contentType, mName, mType string) error {
 	}
 	log.Println(res.Status, res.Request.URL)
 	return nil
+}
+
+func customPostRequest(url, contentType, hash string, body io.Reader) (resp *http.Response, err error) {
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, err
+	}
+	if hash != "" {
+		req.Header.Set("Hash", hash)
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	return http.DefaultClient.Do(req)
+}
+
+func hash(source, key string) ([]byte, error) {
+	h := hmac.New(sha256.New, []byte(key))
+	_, err := h.Write([]byte(source))
+	if err != nil {
+		log.Println(err.Error())
+		return nil, err
+	}
+	return h.Sum(nil), nil
 }

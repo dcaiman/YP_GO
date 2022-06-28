@@ -18,6 +18,7 @@ type EnvConfig struct {
 	StoreInterval time.Duration `env:"STORE_INTERVAL"`
 	StoreFile     string        `env:"STORE_FILE"`
 	InitDownload  bool          `env:"RESTORE"`
+	HashKey       string        `env:"KEY"`
 	EnvConfig     bool
 	ArgConfig     bool
 	SyncUpload    bool
@@ -35,6 +36,7 @@ func RunServer() {
 		SrvAddr:       "127.0.0.1:8080",
 		StoreInterval: 0,
 		StoreFile:     "/metricStorage.json",
+		HashKey:       "key",
 		InitDownload:  true,
 		ArgConfig:     true,
 		EnvConfig:     true,
@@ -44,6 +46,7 @@ func RunServer() {
 		flag.StringVar(&cfg.StoreFile, "f", cfg.StoreFile, "storage file destination")
 		flag.StringVar(&cfg.SrvAddr, "a", cfg.SrvAddr, "server address")
 		flag.DurationVar(&cfg.StoreInterval, "i", cfg.StoreInterval, "store interval")
+		flag.StringVar(&cfg.HashKey, "k", cfg.HashKey, "hash key")
 		flag.Parse()
 	}
 	if cfg.EnvConfig {

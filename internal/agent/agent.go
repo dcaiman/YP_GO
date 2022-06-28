@@ -58,6 +58,7 @@ type EnvConfig struct {
 	PollInterval   time.Duration `env:"POLL_INTERVAL"`
 	ReportInterval time.Duration `env:"REPORT_INTERVAL"`
 	SrvAddr        string        `env:"ADDRESS"`
+	HashKey        string        `env:"KEY"`
 	EnvConfig      bool
 	ArgConfig      bool
 }
@@ -71,6 +72,7 @@ func RunAgent() {
 		PollInterval:   3 * time.Second,
 		ReportInterval: 7 * time.Second,
 		SrvAddr:        "127.0.0.1:8080",
+		HashKey:        "key",
 		ArgConfig:      true,
 		EnvConfig:      true,
 	}
@@ -78,6 +80,7 @@ func RunAgent() {
 		flag.StringVar(&cfg.SrvAddr, "a", cfg.SrvAddr, "server address")
 		flag.DurationVar(&cfg.ReportInterval, "r", cfg.ReportInterval, "report interval")
 		flag.DurationVar(&cfg.PollInterval, "p", cfg.PollInterval, "poll interval")
+		flag.StringVar(&cfg.HashKey, "k", cfg.HashKey, "hash key")
 		flag.Parse()
 	}
 	if cfg.EnvConfig {
