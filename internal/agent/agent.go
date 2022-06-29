@@ -64,6 +64,10 @@ type EnvConfig struct {
 }
 
 func RunAgent() {
+	storage = metrics.Metrics{
+		Gauges:   map[string]float64{},
+		Counters: map[string]int64{},
+	}
 	cfg = EnvConfig{
 		PollInterval:   2 * time.Second,
 		ReportInterval: 5 * time.Second,
@@ -86,11 +90,7 @@ func RunAgent() {
 	}
 	log.Println("AGENT CONFIG: ", cfg)
 
-	storage = metrics.Metrics{
-		EncryptingKey: cfg.HashKey,
-		Gauges:        map[string]float64{},
-		Counters:      map[string]int64{},
-	}
+	storage.EncryptingKey = cfg.HashKey
 
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)

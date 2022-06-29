@@ -117,7 +117,7 @@ func (m *Metrics) getMetricJSON(mName, mType string) ([]byte, string, error) {
 			log.Println(err.Error())
 			return []byte{}, "", err
 		}
-		mjHash, err := hash(fmt.Sprintf("%s:gauge:%f", mName, val), m.EncryptingKey)
+		mjHash, err := m.MetricJSONHash(fmt.Sprintf("%s:gauge:%f", mName, val), m.EncryptingKey)
 		if err != nil {
 			log.Println(err.Error())
 			return []byte{}, "", err
@@ -139,8 +139,7 @@ func (m *Metrics) getMetricJSON(mName, mType string) ([]byte, string, error) {
 			log.Println(err.Error())
 			return []byte{}, "", err
 		}
-		mjHash, err := hash(fmt.Sprintf("%s:counter:%d", mName, val), m.EncryptingKey)
-		fmt.Println(mjHash, mName, val, m.EncryptingKey)
+		mjHash, err := m.MetricJSONHash(fmt.Sprintf("%s:counter:%d", mName, val), m.EncryptingKey)
 		if err != nil {
 			log.Println(err.Error())
 			return []byte{}, "", err
@@ -338,7 +337,7 @@ func (m *Metrics) SendMetric(srvAddr, contentType, mName, mType string) error {
 	}
 	res, err := customPostRequest(HTTPStr+url, contentType, hash, bytes.NewBuffer(body))
 	if err != nil {
-		log.Println("!!!", err.Error())
+		log.Println(err.Error())
 		return err
 	}
 	defer res.Body.Close()
@@ -363,7 +362,7 @@ func customPostRequest(url, contentType, hash string, body io.Reader) (resp *htt
 	return http.DefaultClient.Do(req)
 }
 
-func hash(source, key string) ([]byte, error) {
+func (m *Metrics) MetricJSONHash(source, key string) ([]byte, error) {
 	if key == "" {
 		return []byte{}, nil
 	}

@@ -1,11 +1,14 @@
 package server
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"reflect"
 	"strconv"
 	"text/template"
 
@@ -21,6 +24,7 @@ const (
 )
 
 func handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
+	var resHash string
 	content, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Println(err.Error())
@@ -35,8 +39,46 @@ func handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	switch mj.MType {
 	case metrics.Gauge:
+		serverHash, err := storage.MetricJSONHash(fmt.Sprintf("%s:gauge:%f", mj.ID, *mj.Value), storage.EncryptingKey)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		agentHash, err := hex.DecodeString(mj.Hash)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if !reflect.DeepEqual(serverHash, agentHash) {
+			err := errors.New("inconsistent hash")
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		resHash = hex.EncodeToString(serverHash)
 		storage.UpdateGaugeByValue(mj.ID, *mj.Value)
 	case metrics.Counter:
+		serverHash, err := storage.MetricJSONHash(fmt.Sprintf("%s:counter:%d", mj.ID, *mj.Delta), storage.EncryptingKey)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		agentHash, err := hex.DecodeString(mj.Hash)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if !reflect.DeepEqual(serverHash, agentHash) {
+			err := errors.New("inconsistent hash")
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		resHash = hex.EncodeToString(serverHash)
 		storage.IncreaseCounter(mj.ID, *mj.Delta)
 	default:
 		err := errors.New("cannot update: no such metric type <" + mj.ID + ">")
@@ -47,6 +89,7 @@ func handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
 	if cfg.SyncUpload {
 		storage.UploadStorage(cfg.StoreFile)
 	}
+	w.Header().Set("Hash", resHash)
 }
 
 func handlerUpdateDirect(w http.ResponseWriter, r *http.Request) {
