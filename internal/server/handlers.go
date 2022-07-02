@@ -44,7 +44,7 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if r.Header.Get("Hash") != "" && srv.Storage.EncryptingKey != "" {
+	if srv.Storage.EncryptingKey != "" {
 		resHash, err := srv.checkHash(m)
 		w.Header().Set("Hash", resHash)
 		if err != nil {

@@ -24,10 +24,10 @@ func (m *Metric) UpdateHash(key string) error {
 
 	var deltaPart, valuePart string
 	if m.Delta != nil {
-		deltaPart = fmt.Sprintf("%s:delta:%d", m.ID, *m.Delta)
+		deltaPart = fmt.Sprintf("%s:counter:%d", m.ID, *m.Delta)
 	}
 	if m.Value != nil {
-		valuePart = fmt.Sprintf("%s:value:%f", m.ID, *m.Value)
+		valuePart = fmt.Sprintf("%s:gauge:%f", m.ID, *m.Value)
 	}
 
 	h := hmac.New(sha256.New, []byte(key))
