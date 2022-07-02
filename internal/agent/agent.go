@@ -206,7 +206,7 @@ func sendMetric(srvAddr, contentType, name string, st *metrics.MetricStorage) er
 		log.Println(err)
 		return err
 	}
-	res, err := customPostRequest(HTTPStr+url, contentType, "", bytes.NewBuffer(body))
+	res, err := customPostRequest(HTTPStr+url, contentType, m.Hash, bytes.NewBuffer(body))
 	if err != nil {
 		log.Println(err.Error())
 		return err

@@ -104,12 +104,14 @@ func (st *MetricStorage) newMetric(mName, mType string, value *float64, delta *i
 		err := errors.New("cannot create: metric <" + mName + "> already exists")
 		return err
 	}
-	st.Metrics[mName] = Metric{
+	m := &Metric{
 		ID:    mName,
 		MType: mType,
 		Value: value,
 		Delta: delta,
 	}
+	m.UpdateHash(st.EncryptingKey)
+	st.updateMetricFromStruct(*m)
 	return nil
 }
 
@@ -132,7 +134,10 @@ func (st *MetricStorage) UpdateValue(name string, val float64) error {
 func (st *MetricStorage) updateValue(name string, val float64) error {
 	if m, ok := st.Metrics[name]; ok {
 		m.Value = &val
-		m.UpdateHash(st.EncryptingKey)
+		err := m.UpdateHash(st.EncryptingKey)
+		if err != nil {
+			return err
+		}
 		st.Metrics[name] = m
 		return nil
 	}
@@ -149,7 +154,10 @@ func (st *MetricStorage) UpdateDelta(name string, val int64) error {
 func (st *MetricStorage) updateDelta(name string, val int64) error {
 	if m, ok := st.Metrics[name]; ok {
 		m.Delta = &val
-		m.UpdateHash(st.EncryptingKey)
+		err := m.UpdateHash(st.EncryptingKey)
+		if err != nil {
+			return err
+		}
 		st.Metrics[name] = m
 		return nil
 	}
