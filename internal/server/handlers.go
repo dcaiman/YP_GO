@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -96,25 +97,26 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 	}
 
 	mName := chi.URLParam(r, "name")
-	if !srv.Storage.MetricExists(mName, mType) {
+	if srv.Storage.MetricExists(mName, mType) {
+		switch mType {
+		case Gauge:
+			err = srv.Storage.UpdateValue(mName, mValue)
+		case Counter:
+			fmt.Println(mDelta)
+			err = srv.Storage.AddDelta(mName, mDelta)
+		}
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	} else {
 		err = srv.Storage.NewMetric(mName, mType, &mValue, &mDelta)
 		if err != nil {
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-	}
-
-	switch mType {
-	case Gauge:
-		err = srv.Storage.UpdateValue(mName, mValue)
-	case Counter:
-		err = srv.Storage.AddDelta(mName, mDelta)
-	}
-	if err != nil {
-		log.Println(err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
 	}
 
 	if srv.Cfg.SyncUpload {
