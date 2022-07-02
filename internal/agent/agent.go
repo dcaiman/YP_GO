@@ -159,7 +159,7 @@ func report(st *metrics.MetricStorage, cfg *EnvConfig) {
 		go sendMetric(cfg.SrvAddr, JSONCT, customGauges[i], st)
 	}
 	for i := range counters {
-		go sendMetric(cfg.SrvAddr, TextPlainCT, counters[i], st)
+		go sendMetric(cfg.SrvAddr, JSONCT, counters[i], st)
 	}
 }
 
