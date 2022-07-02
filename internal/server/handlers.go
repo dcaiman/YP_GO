@@ -44,6 +44,16 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if r.Header.Get("Hash") != "" && srv.Storage.EncryptingKey != "" {
+		resHash, err := srv.checkHash(m)
+		w.Header().Set("Hash", resHash)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	if err := checkTypeSupport(m.MType); err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotImplemented)
@@ -210,4 +220,14 @@ func checkTypeSupport(mType string) error {
 	}
 	err := errors.New("unsupported type <" + mType + ">")
 	return err
+}
+
+func (srv *ServerConfig) checkHash(m metrics.Metric) (string, error) {
+	h := m.Hash
+	m.UpdateHash(srv.Cfg.HashKey)
+	if h != m.Hash {
+		err := errors.New("inconsistent hashes")
+		return m.Hash, err
+	}
+	return m.Hash, nil
 }
