@@ -24,72 +24,62 @@ type EnvConfig struct {
 	SyncUpload    bool
 }
 
-var cfg EnvConfig
-var storage metrics.Metrics
+type ServerConfig struct {
+	Storage metrics.MetricStorage
+	Cfg     EnvConfig
+}
 
-func RunServer() {
-	storage = metrics.Metrics{
-		Gauges:   map[string]float64{},
-		Counters: map[string]int64{},
-	}
-	cfg = EnvConfig{
-		SrvAddr:       "127.0.0.1:8080",
-		StoreInterval: 0,
-		StoreFile:     "/tmp/metricStorage.json",
-		HashKey:       "key",
-		InitDownload:  true,
-		ArgConfig:     true,
-		EnvConfig:     true,
-	}
-	if cfg.ArgConfig {
-		flag.BoolVar(&cfg.InitDownload, "r", cfg.InitDownload, "initial download flag")
-		flag.StringVar(&cfg.StoreFile, "f", cfg.StoreFile, "storage file destination")
-		flag.StringVar(&cfg.SrvAddr, "a", cfg.SrvAddr, "server address")
-		flag.DurationVar(&cfg.StoreInterval, "i", cfg.StoreInterval, "store interval")
-		flag.StringVar(&cfg.HashKey, "k", cfg.HashKey, "hash key")
+func RunServer(srv *ServerConfig) {
+	srv.Storage.Init()
+
+	if srv.Cfg.ArgConfig {
+		flag.BoolVar(&srv.Cfg.InitDownload, "r", srv.Cfg.InitDownload, "initial download flag")
+		flag.StringVar(&srv.Cfg.StoreFile, "f", srv.Cfg.StoreFile, "storage file destination")
+		flag.StringVar(&srv.Cfg.SrvAddr, "a", srv.Cfg.SrvAddr, "server address")
+		flag.DurationVar(&srv.Cfg.StoreInterval, "i", srv.Cfg.StoreInterval, "store interval")
+		flag.StringVar(&srv.Cfg.HashKey, "k", srv.Cfg.HashKey, "hash key")
 		flag.Parse()
 	}
-	if cfg.EnvConfig {
-		if err := env.Parse(&cfg); err != nil {
+	if srv.Cfg.EnvConfig {
+		if err := env.Parse(&srv.Cfg); err != nil {
 			log.Println(err.Error())
 		}
 	}
-	if cfg.InitDownload && cfg.StoreFile != "" {
-		err := storage.DownloadStorage(cfg.StoreFile)
+	if srv.Cfg.InitDownload && srv.Cfg.StoreFile != "" {
+		err := srv.Storage.DownloadStorage(srv.Cfg.StoreFile)
 		if err != nil {
 			log.Println(err.Error())
 		}
 	}
-	if cfg.StoreInterval != 0 {
+	if srv.Cfg.StoreInterval != 0 {
 		go func() {
-			uploadTimer := time.NewTicker(cfg.StoreInterval)
+			uploadTimer := time.NewTicker(srv.Cfg.StoreInterval)
 			for {
 				<-uploadTimer.C
-				err := storage.UploadStorage(cfg.StoreFile)
+				err := srv.Storage.UploadStorage(srv.Cfg.StoreFile)
 				if err != nil {
 					log.Println(err.Error())
 				}
 			}
 		}()
 	} else {
-		cfg.SyncUpload = true
+		srv.Cfg.SyncUpload = true
 	}
-	log.Println("SERVER CONFIG: ", cfg)
+	log.Println("SERVER CONFIG: ", srv.Cfg)
 
-	storage.EncryptingKey = cfg.HashKey
+	srv.Storage.EncryptingKey = srv.Cfg.HashKey
 
 	mainRouter := chi.NewRouter()
 	mainRouter.Route("/", func(r chi.Router) {
-		r.Get("/", Compresser(handlerGetAll))
+		r.Get("/", Compresser(srv.handlerGetAll))
 	})
 	mainRouter.Route("/value", func(r chi.Router) {
-		r.Post("/", Compresser(handlerGetMetricJSON))
-		r.Get("/{type}", Compresser(handlerGetMetricsByType))
-		r.Get("/{type}/{name}", Compresser(handlerGetMetric))
+		r.Post("/", Compresser(srv.handlerGetMetricJSON))
+		r.Get("/{type}/{name}", Compresser(srv.handlerGetMetric))
 	})
 	mainRouter.Route("/update", func(r chi.Router) {
-		r.Post("/", Compresser(handlerUpdateJSON))
-		r.Post("/{type}/{name}/{val}", Compresser(handlerUpdateDirect))
+		r.Post("/", Compresser(srv.handlerUpdateJSON))
+		r.Post("/{type}/{name}/{val}", Compresser(srv.handlerUpdateDirect))
 	})
-	log.Println(http.ListenAndServe(cfg.SrvAddr, mainRouter))
+	log.Println(http.ListenAndServe(srv.Cfg.SrvAddr, mainRouter))
 }
