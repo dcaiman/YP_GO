@@ -70,9 +70,7 @@ func RunServer(srv *ServerConfig) {
 		}
 	*/
 	if srv.Cfg.StoreFile != "" {
-		if err := initFileStorage(srv); err != nil {
-			log.Println(err)
-		}
+		initFileStorage(srv)
 	}
 
 	log.Println("SERVER CONFIG: ", srv.Cfg)
@@ -98,13 +96,13 @@ func RunServer(srv *ServerConfig) {
 }
 
 /*
-func initDBStorage(srv *ServerConfig) (*sql.DB, error) {
+func initDBStorage(srv *ServerConfig) *sql.DB {
 	var DB *sql.DB
 	var err error
 	if srv.Cfg.InitDownload {
 		DB, err = sql.Open("pgx", srv.Cfg.DBAddr)
 		if err != nil {
-			return nil, err
+			log.Println(err.Error())
 		}
 	}
 	if srv.Cfg.StoreInterval != 0 {
@@ -121,14 +119,14 @@ func initDBStorage(srv *ServerConfig) (*sql.DB, error) {
 	} else {
 		srv.Cfg.SyncUpload = true
 	}
-	return DB, nil
+	return DB
 }
 */
-func initFileStorage(srv *ServerConfig) error {
+func initFileStorage(srv *ServerConfig) {
 	if srv.Cfg.InitDownload {
 		err := srv.Storage.DownloadStorage(srv.Cfg.StoreFile)
 		if err != nil {
-			return err
+			log.Println(err.Error())
 		}
 	}
 	if srv.Cfg.StoreInterval != 0 {
@@ -145,7 +143,6 @@ func initFileStorage(srv *ServerConfig) error {
 	} else {
 		srv.Cfg.SyncUpload = true
 	}
-	return nil
 }
 
 /*
