@@ -3,7 +3,6 @@ package server
 
 import (
 	"database/sql"
-	"errors"
 	"flag"
 	"log"
 	"net/http"
@@ -56,16 +55,21 @@ func RunServer(srv *ServerConfig) {
 		}
 	}
 
-	if false {
-		//if srv.Cfg.DBAddr != "" {
-		if DB, err := initDBStorage(srv); err != nil {
-			log.Println(err)
-		} else {
-			srv.Cfg.DB = DB
-			defer srv.Cfg.DB.Close()
+	/*
+		if srv.Cfg.DBAddr != "" {
+			if DB, err := initDBStorage(srv); err != nil {
+				log.Println(err)
+			} else {
+				srv.Cfg.DB = DB
+				defer srv.Cfg.DB.Close()
+			}
+		} else if srv.Cfg.StoreFile != "" {
+			if err := initFileStorage(srv); err != nil {
+				log.Println(err)
+			}
 		}
-	} else if srv.Cfg.StoreFile != "" {
-
+	*/
+	if srv.Cfg.StoreFile != "" {
 		if err := initFileStorage(srv); err != nil {
 			log.Println(err)
 		}
@@ -93,6 +97,7 @@ func RunServer(srv *ServerConfig) {
 	log.Println(http.ListenAndServe(srv.Cfg.SrvAddr, mainRouter))
 }
 
+/*
 func initDBStorage(srv *ServerConfig) (*sql.DB, error) {
 	var DB *sql.DB
 	var err error
@@ -118,7 +123,7 @@ func initDBStorage(srv *ServerConfig) (*sql.DB, error) {
 	}
 	return DB, nil
 }
-
+*/
 func initFileStorage(srv *ServerConfig) error {
 	if srv.Cfg.InitDownload {
 		err := srv.Storage.DownloadStorage(srv.Cfg.StoreFile)
@@ -143,6 +148,8 @@ func initFileStorage(srv *ServerConfig) error {
 	return nil
 }
 
+/*
 func uploadStorage() error {
 	return errors.New("UPLOAD TO DB IS NOT IMPLEMENTED")
 }
+*/
