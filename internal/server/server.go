@@ -47,7 +47,7 @@ func RunServer(srv *ServerConfig) {
 		flag.StringVar(&srv.Cfg.SrvAddr, "a", srv.Cfg.SrvAddr, "server address")
 		flag.DurationVar(&srv.Cfg.StoreInterval, "i", srv.Cfg.StoreInterval, "store interval")
 		flag.StringVar(&srv.Cfg.HashKey, "k", srv.Cfg.HashKey, "hash key")
-		flag.StringVar(&srv.Cfg.StoreFile, "d", srv.Cfg.StoreFile, "database address")
+		flag.StringVar(&srv.Cfg.DBAddr, "d", srv.Cfg.DBAddr, "database address")
 		flag.Parse()
 	}
 	if srv.Cfg.EnvConfig {
