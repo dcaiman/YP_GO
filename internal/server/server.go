@@ -19,9 +19,9 @@ import (
 
 type EnvConfig struct {
 	SrvAddr       string        `env:"ADDRESS"`
+	StoreFile     string        `env:"STORE_FILE"`
 	DBAddr        string        `env:"DATABASE_DSN"`
 	StoreInterval time.Duration `env:"STORE_INTERVAL"`
-	StoreFile     string        `env:"STORE_FILE"`
 	InitDownload  bool          `env:"RESTORE"`
 	HashKey       string        `env:"KEY"`
 
@@ -63,11 +63,12 @@ func RunServer(srv *ServerConfig) {
 			srv.Cfg.DB = DB
 			defer srv.Cfg.DB.Close()
 		}
-	} else if srv.Cfg.StoreFile != "" {
-		if err := initFileStorage(srv); err != nil {
-			log.Println(err)
-		}
+		//} else if srv.Cfg.StoreFile != "" {
 	}
+	if err := initFileStorage(srv); err != nil {
+		log.Println(err)
+	}
+	//}
 
 	log.Println("SERVER CONFIG: ", srv.Cfg)
 

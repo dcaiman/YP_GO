@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -33,7 +32,7 @@ const (
 )
 
 func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http.Request) {
-	if err := srv.Cfg.DB.PingContext(context.Background()); err != nil {
+	if err := srv.Cfg.DB.PingContext(r.Context()); err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
