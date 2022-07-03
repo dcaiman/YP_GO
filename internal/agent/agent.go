@@ -16,7 +16,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dcaiman/YP_GO/internal/metrics"
+	"github.com/dcaiman/YP_GO/internal/customMetrics"
+	"github.com/dcaiman/YP_GO/internal/internalMetricStorage"
 
 	"github.com/caarlos0/env"
 )
@@ -77,12 +78,13 @@ type EnvConfig struct {
 }
 
 type AgentConfig struct {
-	Storage metrics.MetricStorage
+	Storage customMetrics.MStorage
 	Cfg     EnvConfig
 }
 
 func RunAgent(agn *AgentConfig) {
-	agn.Storage.Init()
+	agn.Storage = &internalMetricStorage.MetricStorage{}
+	agn.Storage.Init("")
 
 	if agn.Cfg.ArgConfig {
 		flag.StringVar(&agn.Cfg.SrvAddr, "a", agn.Cfg.SrvAddr, "server address")
@@ -98,22 +100,20 @@ func RunAgent(agn *AgentConfig) {
 	}
 	log.Println("AGENT CONFIG: ", agn.Cfg)
 
-	agn.Storage.EncryptingKey = agn.Cfg.HashKey
-
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	pollTimer := time.NewTicker(agn.Cfg.PollInterval)
 	reportTimer := time.NewTicker(agn.Cfg.ReportInterval)
 
-	prepareStorage(&agn.Storage)
+	prepareStorage(agn)
 
 	for {
 		select {
 		case <-pollTimer.C:
-			poll(&agn.Storage)
+			poll(agn)
 		case <-reportTimer.C:
-			report(&agn.Storage, &agn.Cfg)
+			report(agn)
 		case <-signalCh:
 			log.Println("EXIT")
 			os.Exit(0)
@@ -121,45 +121,45 @@ func RunAgent(agn *AgentConfig) {
 	}
 }
 
-func prepareStorage(st *metrics.MetricStorage) {
+func prepareStorage(agn *AgentConfig) {
 	for i := range runtimeGauges {
-		st.NewMetric(runtimeGauges[i], Gauge, nil, nil)
+		agn.Storage.NewMetric(runtimeGauges[i], Gauge, agn.Cfg.HashKey, nil, nil)
 	}
 	for i := range customGauges {
-		st.NewMetric(customGauges[i], Gauge, nil, nil)
+		agn.Storage.NewMetric(customGauges[i], Gauge, agn.Cfg.HashKey, nil, nil)
 	}
 	for i := range counters {
-		st.NewMetric(counters[i], Counter, nil, nil)
+		agn.Storage.NewMetric(counters[i], Counter, agn.Cfg.HashKey, nil, nil)
 	}
 }
 
-func poll(st *metrics.MetricStorage) {
+func poll(agn *AgentConfig) {
 	for i := range runtimeGauges {
-		if err := st.UpdateValue(runtimeGauges[i], getRuntimeMetric(runtimeGauges[i])); err != nil {
+		if err := agn.Storage.UpdateValue(runtimeGauges[i], agn.Cfg.HashKey, getRuntimeMetric(runtimeGauges[i])); err != nil {
 			log.Println(err.Error())
 		}
 	}
 	for i := range customGauges {
-		if err := st.UpdateValue(customGauges[i], 100*rand.Float64()); err != nil {
+		if err := agn.Storage.UpdateValue(customGauges[i], agn.Cfg.HashKey, 100*rand.Float64()); err != nil {
 			log.Println(err.Error())
 		}
 	}
 	for i := range counters {
-		if err := st.IncreaseDelta(counters[i]); err != nil {
+		if err := agn.Storage.IncreaseDelta(counters[i], agn.Cfg.HashKey); err != nil {
 			log.Println(err.Error())
 		}
 	}
 }
 
-func report(st *metrics.MetricStorage, cfg *EnvConfig) {
+func report(agn *AgentConfig) {
 	for i := range runtimeGauges {
-		go sendMetric(cfg.SrvAddr, JSONCT, runtimeGauges[i], st)
+		go sendMetric(runtimeGauges[i], JSONCT, agn)
 	}
 	for i := range customGauges {
-		go sendMetric(cfg.SrvAddr, JSONCT, customGauges[i], st)
+		go sendMetric(customGauges[i], JSONCT, agn)
 	}
 	for i := range counters {
-		go sendMetric(cfg.SrvAddr, JSONCT, counters[i], st)
+		go sendMetric(counters[i], JSONCT, agn)
 	}
 }
 
@@ -169,11 +169,11 @@ func getRuntimeMetric(name string) float64 {
 	return reflect.Indirect(reflect.ValueOf(mem)).FieldByName(name).Convert(reflect.TypeOf(0.0)).Float()
 }
 
-func sendMetric(srvAddr, contentType, name string, st *metrics.MetricStorage) error {
+func sendMetric(name, contentType string, agn *AgentConfig) error {
 	var url, val string
 	var body []byte
 
-	m, err := st.GetMetric(name)
+	m, err := agn.Storage.GetMetric(name)
 	if err != nil {
 		log.Println(err.Error())
 		return err
@@ -191,7 +191,7 @@ func sendMetric(srvAddr, contentType, name string, st *metrics.MetricStorage) er
 			log.Println(err)
 			return err
 		}
-		url = srvAddr + "/update/" + m.MType + "/" + m.ID + "/" + val
+		url = agn.Cfg.SrvAddr + "/update/" + m.MType + "/" + m.ID + "/" + val
 		body = nil
 	case JSONCT:
 		tmpBody, err := m.GetJSON()
@@ -199,7 +199,7 @@ func sendMetric(srvAddr, contentType, name string, st *metrics.MetricStorage) er
 			log.Println(err.Error())
 			return err
 		}
-		url = srvAddr + "/update/"
+		url = agn.Cfg.SrvAddr + "/update/"
 		body = tmpBody
 	default:
 		err := errors.New("cannot send: unsupported content type <" + contentType + ">")
@@ -213,7 +213,7 @@ func sendMetric(srvAddr, contentType, name string, st *metrics.MetricStorage) er
 	}
 	defer res.Body.Close()
 	if m.MType == Counter {
-		st.ResetDelta(name)
+		agn.Storage.ResetDelta(name, agn.Cfg.HashKey)
 	}
 	log.Println(res.Status, res.Request.URL)
 	return nil

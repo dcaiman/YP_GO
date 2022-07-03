@@ -1,9 +1,7 @@
-//
 package server
 
 import (
 	"database/sql"
-	"errors"
 	"flag"
 	"log"
 	"net/http"
@@ -11,7 +9,9 @@ import (
 
 	_ "github.com/jackc/pgx/v4/stdlib"
 
-	metrics "github.com/dcaiman/YP_GO/internal/metrics"
+	"github.com/dcaiman/YP_GO/internal/customMetrics"
+	"github.com/dcaiman/YP_GO/internal/internalMetricStorage"
+	"github.com/dcaiman/YP_GO/internal/pgxMetricStorage"
 
 	"github.com/caarlos0/env"
 	"github.com/go-chi/chi/v5"
@@ -34,13 +34,11 @@ type EnvConfig struct {
 }
 
 type ServerConfig struct {
-	Storage metrics.MetricStorage
+	Storage customMetrics.MStorage
 	Cfg     EnvConfig
 }
 
 func RunServer(srv *ServerConfig) {
-	srv.Storage.Init()
-
 	if srv.Cfg.ArgConfig {
 		flag.BoolVar(&srv.Cfg.InitDownload, "r", srv.Cfg.InitDownload, "initial download flag")
 		flag.StringVar(&srv.Cfg.StoreFile, "f", srv.Cfg.StoreFile, "storage file destination")
@@ -55,17 +53,38 @@ func RunServer(srv *ServerConfig) {
 			log.Println(err.Error())
 		}
 	}
+
 	if false {
 		//if srv.Cfg.DBAddr != "" {
-		srv.Cfg.DB = initDBStorage(srv)
-		defer srv.Cfg.DB.Close()
+		srv.Storage = &pgxMetricStorage.MetricStorage{}
+		srv.Storage.Init(srv.Cfg.DBAddr)
 	} else if srv.Cfg.StoreFile != "" {
-		initFileStorage(srv)
+		srv.Storage = &internalMetricStorage.MetricStorage{}
+		srv.Storage.Init(srv.Cfg.StoreFile)
+	}
+
+	if srv.Cfg.InitDownload {
+		err := srv.Storage.DownloadStorage()
+		if err != nil {
+			log.Println(err.Error())
+		}
+	}
+	if srv.Cfg.StoreInterval != 0 {
+		go func() {
+			uploadTimer := time.NewTicker(srv.Cfg.StoreInterval)
+			for {
+				<-uploadTimer.C
+				err := srv.Storage.UploadStorage()
+				if err != nil {
+					log.Println(err.Error())
+				}
+			}
+		}()
+	} else {
+		srv.Cfg.SyncUpload = true
 	}
 
 	log.Println("SERVER CONFIG: ", srv.Cfg)
-
-	srv.Storage.EncryptingKey = srv.Cfg.HashKey
 
 	mainRouter := chi.NewRouter()
 	mainRouter.Route("/", func(r chi.Router) {
@@ -83,57 +102,4 @@ func RunServer(srv *ServerConfig) {
 		r.Get("/", Compresser(srv.handlerCheckDBConnection))
 	})
 	log.Println(http.ListenAndServe(srv.Cfg.SrvAddr, mainRouter))
-}
-
-func initDBStorage(srv *ServerConfig) *sql.DB {
-	var DB *sql.DB
-	var err error
-	if srv.Cfg.InitDownload {
-		DB, err = sql.Open("pgx", srv.Cfg.DBAddr)
-		if err != nil {
-			log.Println(err.Error())
-		}
-	}
-	if srv.Cfg.StoreInterval != 0 {
-		go func() {
-			uploadTimer := time.NewTicker(srv.Cfg.StoreInterval)
-			for {
-				<-uploadTimer.C
-				err = uploadStorage()
-				if err != nil {
-					log.Println(err)
-				}
-			}
-		}()
-	} else {
-		srv.Cfg.SyncUpload = true
-	}
-	return DB
-}
-
-func initFileStorage(srv *ServerConfig) {
-	if srv.Cfg.InitDownload {
-		err := srv.Storage.DownloadStorage(srv.Cfg.StoreFile)
-		if err != nil {
-			log.Println(err.Error())
-		}
-	}
-	if srv.Cfg.StoreInterval != 0 {
-		go func() {
-			uploadTimer := time.NewTicker(srv.Cfg.StoreInterval)
-			for {
-				<-uploadTimer.C
-				err := srv.Storage.UploadStorage(srv.Cfg.StoreFile)
-				if err != nil {
-					log.Println(err.Error())
-				}
-			}
-		}()
-	} else {
-		srv.Cfg.SyncUpload = true
-	}
-}
-
-func uploadStorage() error {
-	return errors.New("UPLOAD TO DB IS NOT IMPLEMENTED")
 }

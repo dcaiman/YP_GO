@@ -9,8 +9,7 @@ import (
 	"strconv"
 	"text/template"
 
-	"github.com/dcaiman/YP_GO/internal/metrics"
-
+	"github.com/dcaiman/YP_GO/internal/customMetrics"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -52,13 +51,13 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	m, err := metrics.SetFromJSON(&metrics.Metric{}, content)
+	m, err := customMetrics.SetFromJSON(&customMetrics.Metric{}, content)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
 
-	if r.Header.Get("Hash") != "" && srv.Storage.EncryptingKey != "" {
+	if r.Header.Get("Hash") != "" && srv.Cfg.HashKey != "" {
 		resHash, err := srv.checkHash(m)
 		w.Header().Set("Hash", resHash)
 		if err != nil {
@@ -77,9 +76,9 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 	if srv.Storage.MetricExists(m.ID, m.MType) {
 		switch m.MType {
 		case Gauge:
-			err = srv.Storage.UpdateValue(m.ID, *m.Value)
+			err = srv.Storage.UpdateValue(m.ID, srv.Cfg.HashKey, *m.Value)
 		case Counter:
-			err = srv.Storage.AddDelta(m.ID, *m.Delta)
+			err = srv.Storage.AddDelta(m.ID, srv.Cfg.HashKey, *m.Delta)
 		}
 		if err != nil {
 			log.Println(err.Error())
@@ -92,7 +91,7 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 	}
 
 	if srv.Cfg.SyncUpload {
-		srv.Storage.UploadStorage(srv.Cfg.StoreFile)
+		srv.Storage.UploadStorage()
 	}
 }
 
@@ -124,10 +123,10 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 	if srv.Storage.MetricExists(mName, mType) {
 		switch mType {
 		case Gauge:
-			err = srv.Storage.UpdateValue(mName, mValue)
+			err = srv.Storage.UpdateValue(mName, srv.Cfg.HashKey, mValue)
 		case Counter:
 			fmt.Println(mDelta)
-			err = srv.Storage.AddDelta(mName, mDelta)
+			err = srv.Storage.AddDelta(mName, srv.Cfg.HashKey, mDelta)
 		}
 		if err != nil {
 			log.Println(err.Error())
@@ -135,7 +134,7 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	} else {
-		err = srv.Storage.NewMetric(mName, mType, &mValue, &mDelta)
+		err = srv.Storage.NewMetric(mName, mType, srv.Cfg.HashKey, &mValue, &mDelta)
 		if err != nil {
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -144,7 +143,7 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 	}
 
 	if srv.Cfg.SyncUpload {
-		srv.Storage.UploadStorage(srv.Cfg.StoreFile)
+		srv.Storage.UploadStorage()
 	}
 }
 
@@ -167,7 +166,7 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	mReq, err := metrics.SetFromJSON(&metrics.Metric{}, content)
+	mReq, err := customMetrics.SetFromJSON(&customMetrics.Metric{}, content)
 	if err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -236,7 +235,7 @@ func checkTypeSupport(mType string) error {
 	return err
 }
 
-func (srv *ServerConfig) checkHash(m metrics.Metric) (string, error) {
+func (srv *ServerConfig) checkHash(m customMetrics.Metric) (string, error) {
 	h := m.Hash
 	m.UpdateHash(srv.Cfg.HashKey)
 	if h != m.Hash {

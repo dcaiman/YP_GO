@@ -1,27 +1,41 @@
-package metrics
+package pgxMetricStorage
 
 import (
 	"bufio"
+	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"sync"
+
+	"github.com/dcaiman/YP_GO/internal/customMetrics"
 )
 
 type MetricStorage struct {
 	sync.RWMutex
-	EncryptingKey string
-	Metrics       map[string]Metric
+	Path    string
+	Metrics map[string]customMetrics.Metric
 }
 
-func (st *MetricStorage) Init() {
-	st.Metrics = map[string]Metric{}
-}
-
-func (st *MetricStorage) UploadStorage(path string) error {
+func (st *MetricStorage) Init(path string) {
 	st.Lock()
 	defer st.Unlock()
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+	fmt.Println("PGX INIT")
+
+	_, err := sql.Open("pgx", path)
+	if err != nil {
+		log.Println(err.Error())
+	}
+
+	st.Path = path
+	st.Metrics = map[string]customMetrics.Metric{}
+}
+
+func (st *MetricStorage) UploadStorage() error {
+	st.Lock()
+	defer st.Unlock()
+	file, err := os.OpenFile(st.Path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
 	if err != nil {
 		return err
 	}
@@ -37,14 +51,14 @@ func (st *MetricStorage) UploadStorage(path string) error {
 			return err
 		}
 	}
-	log.Println("UPLOADED TO: " + path)
+	log.Println("UPLOADED TO: " + st.Path)
 	return nil
 }
 
-func (st *MetricStorage) DownloadStorage(path string) error {
+func (st *MetricStorage) DownloadStorage() error {
 	st.Lock()
 	defer st.Unlock()
-	file, err := os.Open(path)
+	file, err := os.Open(st.Path)
 	if err != nil {
 		return err
 	}
@@ -53,7 +67,7 @@ func (st *MetricStorage) DownloadStorage(path string) error {
 	for b.Scan() {
 		st.updateMetricFromJSON(b.Bytes())
 	}
-	log.Println("DOWNLOADED FROM: " + path)
+	log.Println("DOWNLOADED FROM: " + st.Path)
 	return nil
 }
 
@@ -64,7 +78,7 @@ func (st *MetricStorage) UpdateMetricFromJSON(content []byte) error {
 }
 
 func (st *MetricStorage) updateMetricFromJSON(content []byte) error {
-	m, err := SetFromJSON(&Metric{}, content)
+	m, err := customMetrics.SetFromJSON(&customMetrics.Metric{}, content)
 	if err != nil {
 		return err
 	}
@@ -72,13 +86,13 @@ func (st *MetricStorage) updateMetricFromJSON(content []byte) error {
 	return nil
 }
 
-func (st *MetricStorage) UpdateMetricFromStruct(m Metric) {
+func (st *MetricStorage) UpdateMetricFromStruct(m customMetrics.Metric) {
 	st.Lock()
 	defer st.Unlock()
 	st.updateMetricFromStruct(m)
 }
 
-func (st *MetricStorage) updateMetricFromStruct(m Metric) {
+func (st *MetricStorage) updateMetricFromStruct(m customMetrics.Metric) {
 	st.Metrics[m.ID] = m
 }
 
@@ -93,48 +107,48 @@ func (st *MetricStorage) MetricExists(mName, mType string) bool {
 	return false
 }
 
-func (st *MetricStorage) NewMetric(mName, mType string, value *float64, delta *int64) error {
+func (st *MetricStorage) NewMetric(mName, mType, hashKey string, value *float64, delta *int64) error {
 	st.Lock()
 	defer st.Unlock()
-	return st.newMetric(mName, mType, value, delta)
+	return st.newMetric(mName, mType, hashKey, value, delta)
 }
 
-func (st *MetricStorage) newMetric(mName, mType string, value *float64, delta *int64) error {
+func (st *MetricStorage) newMetric(mName, mType, hashKey string, value *float64, delta *int64) error {
 	if _, ok := st.Metrics[mName]; ok {
 		err := errors.New("cannot create: metric <" + mName + "> already exists")
 		return err
 	}
-	m := &Metric{
+	m := &customMetrics.Metric{
 		ID:    mName,
 		MType: mType,
 		Value: value,
 		Delta: delta,
 	}
-	m.UpdateHash(st.EncryptingKey)
+	m.UpdateHash(hashKey)
 	st.updateMetricFromStruct(*m)
 	return nil
 }
 
-func (st *MetricStorage) GetMetric(name string) (Metric, error) {
+func (st *MetricStorage) GetMetric(name string) (customMetrics.Metric, error) {
 	st.Lock()
 	defer st.Unlock()
 	if m, ok := st.Metrics[name]; ok {
 		return m, nil
 	}
 	err := errors.New("cannot get: metric <" + name + "> doesn't exist")
-	return Metric{}, err
+	return customMetrics.Metric{}, err
 }
 
-func (st *MetricStorage) UpdateValue(name string, val float64) error {
+func (st *MetricStorage) UpdateValue(name, hashKey string, val float64) error {
 	st.Lock()
 	defer st.Unlock()
-	return st.updateValue(name, val)
+	return st.updateValue(name, hashKey, val)
 }
 
-func (st *MetricStorage) updateValue(name string, val float64) error {
+func (st *MetricStorage) updateValue(name, hashKey string, val float64) error {
 	if m, ok := st.Metrics[name]; ok {
 		m.Value = &val
-		err := m.UpdateHash(st.EncryptingKey)
+		err := m.UpdateHash(hashKey)
 		if err != nil {
 			return err
 		}
@@ -145,16 +159,16 @@ func (st *MetricStorage) updateValue(name string, val float64) error {
 	return err
 }
 
-func (st *MetricStorage) UpdateDelta(name string, val int64) error {
+func (st *MetricStorage) UpdateDelta(name, hashKey string, val int64) error {
 	st.Lock()
 	defer st.Unlock()
-	return st.updateDelta(name, val)
+	return st.updateDelta(name, hashKey, val)
 }
 
-func (st *MetricStorage) updateDelta(name string, val int64) error {
+func (st *MetricStorage) updateDelta(name, hashKey string, val int64) error {
 	if m, ok := st.Metrics[name]; ok {
 		m.Delta = &val
-		err := m.UpdateHash(st.EncryptingKey)
+		err := m.UpdateHash(hashKey)
 		if err != nil {
 			return err
 		}
@@ -165,28 +179,28 @@ func (st *MetricStorage) updateDelta(name string, val int64) error {
 	return err
 }
 
-func (st *MetricStorage) AddDelta(name string, val int64) error {
+func (st *MetricStorage) AddDelta(name, hashKey string, val int64) error {
 	st.Lock()
 	defer st.Unlock()
 	currentVal := st.Metrics[name].Delta
 	if currentVal == nil {
-		return st.updateDelta(name, val)
+		return st.updateDelta(name, hashKey, val)
 	}
-	return st.updateDelta(name, *currentVal+val)
+	return st.updateDelta(name, hashKey, *currentVal+val)
 }
 
-func (st *MetricStorage) IncreaseDelta(name string) error {
+func (st *MetricStorage) IncreaseDelta(name, hashKey string) error {
 	st.Lock()
 	defer st.Unlock()
 	val := st.Metrics[name].Delta
 	if val == nil {
-		return st.updateDelta(name, 1)
+		return st.updateDelta(name, hashKey, 1)
 	}
-	return st.updateDelta(name, *val+1)
+	return st.updateDelta(name, hashKey, *val+1)
 }
 
-func (st *MetricStorage) ResetDelta(name string) error {
+func (st *MetricStorage) ResetDelta(name, hashKey string) error {
 	st.Lock()
 	defer st.Unlock()
-	return st.updateDelta(name, 0)
+	return st.updateDelta(name, hashKey, 0)
 }

@@ -1,4 +1,4 @@
-package metrics
+package customMetrics
 
 import (
 	"crypto/hmac"
@@ -7,6 +7,22 @@ import (
 	"encoding/json"
 	"fmt"
 )
+
+type MStorage interface {
+	Init(custom string)
+	DownloadStorage() error
+	UploadStorage() error
+	UpdateMetricFromJSON(content []byte) error
+	UpdateMetricFromStruct(m Metric)
+	MetricExists(mName, mType string) bool
+	NewMetric(mName, mType, hashKey string, value *float64, delta *int64) error
+	GetMetric(name string) (Metric, error)
+	UpdateValue(name, hashKey string, val float64) error
+	UpdateDelta(name, hashKey string, val int64) error
+	AddDelta(name, hashKey string, val int64) error
+	IncreaseDelta(name, hashKey string) error
+	ResetDelta(name, hashKey string) error
+}
 
 type Metric struct {
 	ID    string   `json:"id"`
