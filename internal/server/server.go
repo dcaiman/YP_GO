@@ -9,9 +9,9 @@ import (
 
 	_ "github.com/jackc/pgx/v4/stdlib"
 
-	"github.com/dcaiman/YP_GO/internal/customMetrics"
-	"github.com/dcaiman/YP_GO/internal/internalMetricStorage"
-	"github.com/dcaiman/YP_GO/internal/pgxMetricStorage"
+	"github.com/dcaiman/YP_GO/internal/internalstorage"
+	"github.com/dcaiman/YP_GO/internal/metric"
+	"github.com/dcaiman/YP_GO/internal/pgxstorage"
 
 	"github.com/caarlos0/env"
 	"github.com/go-chi/chi/v5"
@@ -34,7 +34,7 @@ type EnvConfig struct {
 }
 
 type ServerConfig struct {
-	Storage customMetrics.MStorage
+	Storage metric.MStorage
 	Cfg     EnvConfig
 }
 
@@ -54,12 +54,12 @@ func RunServer(srv *ServerConfig) {
 		}
 	}
 
-	if false {
-		//if srv.Cfg.DBAddr != "" {
-		srv.Storage = &pgxMetricStorage.MetricStorage{}
+	//if false {
+	if srv.Cfg.DBAddr != "" {
+		srv.Storage = &pgxstorage.MetricStorage{}
 		srv.Storage.Init(srv.Cfg.DBAddr)
 	} else if srv.Cfg.StoreFile != "" {
-		srv.Storage = &internalMetricStorage.MetricStorage{}
+		srv.Storage = &internalstorage.MetricStorage{}
 		srv.Storage.Init(srv.Cfg.StoreFile)
 	}
 

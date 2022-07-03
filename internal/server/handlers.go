@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"text/template"
 
-	"github.com/dcaiman/YP_GO/internal/customMetrics"
+	"github.com/dcaiman/YP_GO/internal/metric"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -51,7 +51,7 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	m, err := customMetrics.SetFromJSON(&customMetrics.Metric{}, content)
+	m, err := metric.SetFromJSON(&metric.Metric{}, content)
 	if err != nil {
 		log.Println(err.Error())
 		return
@@ -166,7 +166,7 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	mReq, err := customMetrics.SetFromJSON(&customMetrics.Metric{}, content)
+	mReq, err := metric.SetFromJSON(&metric.Metric{}, content)
 	if err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -235,7 +235,7 @@ func checkTypeSupport(mType string) error {
 	return err
 }
 
-func (srv *ServerConfig) checkHash(m customMetrics.Metric) (string, error) {
+func (srv *ServerConfig) checkHash(m metric.Metric) (string, error) {
 	h := m.Hash
 	m.UpdateHash(srv.Cfg.HashKey)
 	if h != m.Hash {

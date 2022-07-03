@@ -1,4 +1,4 @@
-package pgxMetricStorage
+package pgxstorage
 
 import (
 	"bufio"
@@ -9,13 +9,13 @@ import (
 	"os"
 	"sync"
 
-	"github.com/dcaiman/YP_GO/internal/customMetrics"
+	"github.com/dcaiman/YP_GO/internal/metric"
 )
 
 type MetricStorage struct {
 	sync.RWMutex
 	Path    string
-	Metrics map[string]customMetrics.Metric
+	Metrics map[string]metric.Metric
 }
 
 func (st *MetricStorage) Init(path string) {
@@ -29,7 +29,7 @@ func (st *MetricStorage) Init(path string) {
 	}
 
 	st.Path = path
-	st.Metrics = map[string]customMetrics.Metric{}
+	st.Metrics = map[string]metric.Metric{}
 }
 
 func (st *MetricStorage) UploadStorage() error {
@@ -78,7 +78,7 @@ func (st *MetricStorage) UpdateMetricFromJSON(content []byte) error {
 }
 
 func (st *MetricStorage) updateMetricFromJSON(content []byte) error {
-	m, err := customMetrics.SetFromJSON(&customMetrics.Metric{}, content)
+	m, err := metric.SetFromJSON(&metric.Metric{}, content)
 	if err != nil {
 		return err
 	}
@@ -86,13 +86,13 @@ func (st *MetricStorage) updateMetricFromJSON(content []byte) error {
 	return nil
 }
 
-func (st *MetricStorage) UpdateMetricFromStruct(m customMetrics.Metric) {
+func (st *MetricStorage) UpdateMetricFromStruct(m metric.Metric) {
 	st.Lock()
 	defer st.Unlock()
 	st.updateMetricFromStruct(m)
 }
 
-func (st *MetricStorage) updateMetricFromStruct(m customMetrics.Metric) {
+func (st *MetricStorage) updateMetricFromStruct(m metric.Metric) {
 	st.Metrics[m.ID] = m
 }
 
@@ -118,7 +118,7 @@ func (st *MetricStorage) newMetric(mName, mType, hashKey string, value *float64,
 		err := errors.New("cannot create: metric <" + mName + "> already exists")
 		return err
 	}
-	m := &customMetrics.Metric{
+	m := &metric.Metric{
 		ID:    mName,
 		MType: mType,
 		Value: value,
@@ -129,14 +129,14 @@ func (st *MetricStorage) newMetric(mName, mType, hashKey string, value *float64,
 	return nil
 }
 
-func (st *MetricStorage) GetMetric(name string) (customMetrics.Metric, error) {
+func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
 	st.Lock()
 	defer st.Unlock()
 	if m, ok := st.Metrics[name]; ok {
 		return m, nil
 	}
 	err := errors.New("cannot get: metric <" + name + "> doesn't exist")
-	return customMetrics.Metric{}, err
+	return metric.Metric{}, err
 }
 
 func (st *MetricStorage) UpdateValue(name, hashKey string, val float64) error {

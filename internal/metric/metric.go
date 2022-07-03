@@ -1,4 +1,4 @@
-package customMetrics
+package metric
 
 import (
 	"crypto/hmac"

@@ -16,8 +16,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dcaiman/YP_GO/internal/customMetrics"
-	"github.com/dcaiman/YP_GO/internal/internalMetricStorage"
+	"github.com/dcaiman/YP_GO/internal/internalstorage"
+	"github.com/dcaiman/YP_GO/internal/metric"
 
 	"github.com/caarlos0/env"
 )
@@ -78,12 +78,12 @@ type EnvConfig struct {
 }
 
 type AgentConfig struct {
-	Storage customMetrics.MStorage
+	Storage metric.MStorage
 	Cfg     EnvConfig
 }
 
 func RunAgent(agn *AgentConfig) {
-	agn.Storage = &internalMetricStorage.MetricStorage{}
+	agn.Storage = &internalstorage.MetricStorage{}
 	agn.Storage.Init("")
 
 	if agn.Cfg.ArgConfig {
