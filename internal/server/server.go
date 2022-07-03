@@ -1,7 +1,6 @@
 package server
 
 import (
-	"database/sql"
 	"flag"
 	"log"
 	"net/http"
@@ -29,8 +28,6 @@ type EnvConfig struct {
 
 	EnvConfig bool
 	ArgConfig bool
-
-	DB *sql.DB
 }
 
 type ServerConfig struct {
@@ -54,8 +51,8 @@ func RunServer(srv *ServerConfig) {
 		}
 	}
 
-	//if false {
-	if srv.Cfg.DBAddr != "" {
+	if false {
+		//if srv.Cfg.DBAddr != "" {
 		srv.Storage = &pgxstorage.MetricStorage{}
 		srv.Storage.Init(srv.Cfg.DBAddr)
 	} else if srv.Cfg.StoreFile != "" {

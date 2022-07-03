@@ -1,6 +1,7 @@
 package metric
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 
 type MStorage interface {
 	Init(custom string)
+	AccessCheck(ctx context.Context) error
 	DownloadStorage() error
 	UploadStorage() error
 	UpdateMetricFromJSON(content []byte) error

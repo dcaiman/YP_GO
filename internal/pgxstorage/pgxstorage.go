@@ -2,6 +2,7 @@ package pgxstorage
 
 import (
 	"bufio"
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 
 type MetricStorage struct {
 	sync.RWMutex
+	DB      *sql.DB
 	Path    string
 	Metrics map[string]metric.Metric
 }
@@ -23,13 +25,20 @@ func (st *MetricStorage) Init(path string) {
 	defer st.Unlock()
 	fmt.Println("PGX INIT")
 
-	_, err := sql.Open("pgx", path)
+	tmp, err := sql.Open("pgx", path)
 	if err != nil {
 		log.Println(err.Error())
 	}
-
+	st.DB = tmp
 	st.Path = path
 	st.Metrics = map[string]metric.Metric{}
+}
+
+func (st *MetricStorage) AccessCheck(ctx context.Context) error {
+	if err := st.DB.PingContext(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (st *MetricStorage) UploadStorage() error {

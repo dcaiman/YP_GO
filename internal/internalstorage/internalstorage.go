@@ -2,6 +2,7 @@ package internalstorage
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"log"
 	"os"
@@ -21,6 +22,14 @@ func (st *MetricStorage) Init(path string) {
 	defer st.Unlock()
 	st.Path = path
 	st.Metrics = map[string]metric.Metric{}
+}
+
+func (st *MetricStorage) AccessCheck(ctx context.Context) error {
+	if st.Metrics == nil {
+		err := errors.New("storage map is not initialized")
+		return err
+	}
+	return nil
 }
 
 func (st *MetricStorage) UploadStorage() error {

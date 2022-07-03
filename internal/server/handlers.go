@@ -31,14 +31,12 @@ const (
 )
 
 func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http.Request) {
-	if err := srv.Cfg.DB.PingContext(r.Context()); err != nil {
-		log.Println(err.Error())
+	if err := srv.Storage.AccessCheck(r.Context()); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_, err := w.Write([]byte("CONNECTED TO DB"))
+	_, err := w.Write([]byte("STORAGE IS AVAILABLE"))
 	if err != nil {
-		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
