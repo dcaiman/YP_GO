@@ -11,7 +11,7 @@ import (
 
 	_ "github.com/jackc/pgx/v4/stdlib"
 
-	"github.com/dcaiman/YP_GO/internal/metrics"
+	metrics "github.com/dcaiman/YP_GO/internal/metrics"
 
 	"github.com/caarlos0/env"
 	"github.com/go-chi/chi/v5"
@@ -55,8 +55,8 @@ func RunServer(srv *ServerConfig) {
 			log.Println(err.Error())
 		}
 	}
-
-	if srv.Cfg.DBAddr != "" {
+	if false {
+		//if srv.Cfg.DBAddr != "" {
 		srv.Cfg.DB = initDBStorage(srv)
 		defer srv.Cfg.DB.Close()
 	} else if srv.Cfg.StoreFile != "" {
