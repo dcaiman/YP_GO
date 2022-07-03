@@ -10,12 +10,14 @@ func main() {
 		Storage: metrics.MetricStorage{},
 		Cfg: server.EnvConfig{
 			SrvAddr:       "127.0.0.1:8080",
+			DBAddr:        "postgresql://postgres:1@127.0.0.1:5432",
 			StoreInterval: 0,
 			StoreFile:     "./tmp/metricStorage.json",
 			HashKey:       "key",
 			InitDownload:  true,
-			ArgConfig:     true,
-			EnvConfig:     true,
+
+			ArgConfig: true,
+			EnvConfig: true,
 		},
 	}
 	server.RunServer(&srv)

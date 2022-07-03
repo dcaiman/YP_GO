@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -30,6 +31,20 @@ const (
 const (
 	templateHandlerGetAll = "METRICS LIST: <p>{{range .Metrics}}{{.ID}}: {{.Value}}{{.Delta}} ({{.MType}})<p>{{end}}"
 )
+
+func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http.Request) {
+	if err := srv.Cfg.DB.PingContext(context.Background()); err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, err := w.Write([]byte("CONNECTED TO DB"))
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
 
 func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
 	content, err := io.ReadAll(r.Body)

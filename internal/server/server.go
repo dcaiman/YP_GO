@@ -2,10 +2,14 @@
 package server
 
 import (
+	"database/sql"
+	"errors"
 	"flag"
 	"log"
 	"net/http"
 	"time"
+
+	_ "github.com/jackc/pgx/v4/stdlib"
 
 	"github.com/dcaiman/YP_GO/internal/metrics"
 
@@ -15,13 +19,18 @@ import (
 
 type EnvConfig struct {
 	SrvAddr       string        `env:"ADDRESS"`
+	DBAddr        string        `env:"DATABASE_DSN"`
 	StoreInterval time.Duration `env:"STORE_INTERVAL"`
 	StoreFile     string        `env:"STORE_FILE"`
 	InitDownload  bool          `env:"RESTORE"`
 	HashKey       string        `env:"KEY"`
-	EnvConfig     bool
-	ArgConfig     bool
-	SyncUpload    bool
+
+	SyncUpload bool
+
+	EnvConfig bool
+	ArgConfig bool
+
+	DB *sql.DB
 }
 
 type ServerConfig struct {
@@ -38,6 +47,7 @@ func RunServer(srv *ServerConfig) {
 		flag.StringVar(&srv.Cfg.SrvAddr, "a", srv.Cfg.SrvAddr, "server address")
 		flag.DurationVar(&srv.Cfg.StoreInterval, "i", srv.Cfg.StoreInterval, "store interval")
 		flag.StringVar(&srv.Cfg.HashKey, "k", srv.Cfg.HashKey, "hash key")
+		flag.StringVar(&srv.Cfg.StoreFile, "d", srv.Cfg.StoreFile, "database address")
 		flag.Parse()
 	}
 	if srv.Cfg.EnvConfig {
@@ -45,26 +55,20 @@ func RunServer(srv *ServerConfig) {
 			log.Println(err.Error())
 		}
 	}
-	if srv.Cfg.InitDownload && srv.Cfg.StoreFile != "" {
-		err := srv.Storage.DownloadStorage(srv.Cfg.StoreFile)
-		if err != nil {
-			log.Println(err.Error())
+
+	if srv.Cfg.DBAddr != "" {
+		if DB, err := initDBStorage(srv); err != nil {
+			log.Println(err)
+		} else {
+			srv.Cfg.DB = DB
+			defer srv.Cfg.DB.Close()
+		}
+	} else if srv.Cfg.StoreFile != "" {
+		if err := initFileStorage(srv); err != nil {
+			log.Println(err)
 		}
 	}
-	if srv.Cfg.StoreInterval != 0 {
-		go func() {
-			uploadTimer := time.NewTicker(srv.Cfg.StoreInterval)
-			for {
-				<-uploadTimer.C
-				err := srv.Storage.UploadStorage(srv.Cfg.StoreFile)
-				if err != nil {
-					log.Println(err.Error())
-				}
-			}
-		}()
-	} else {
-		srv.Cfg.SyncUpload = true
-	}
+
 	log.Println("SERVER CONFIG: ", srv.Cfg)
 
 	srv.Storage.EncryptingKey = srv.Cfg.HashKey
@@ -81,5 +85,62 @@ func RunServer(srv *ServerConfig) {
 		r.Post("/", Compresser(srv.handlerUpdateJSON))
 		r.Post("/{type}/{name}/{val}", Compresser(srv.handlerUpdateDirect))
 	})
+	mainRouter.Route("/ping", func(r chi.Router) {
+		r.Get("/", Compresser(srv.handlerCheckDBConnection))
+	})
 	log.Println(http.ListenAndServe(srv.Cfg.SrvAddr, mainRouter))
+}
+
+func initDBStorage(srv *ServerConfig) (*sql.DB, error) {
+	var DB *sql.DB
+	var err error
+	if srv.Cfg.InitDownload {
+		DB, err = sql.Open("pgx", srv.Cfg.DBAddr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if srv.Cfg.StoreInterval != 0 {
+		go func() {
+			uploadTimer := time.NewTicker(srv.Cfg.StoreInterval)
+			for {
+				<-uploadTimer.C
+				err = uploadStorage()
+				if err != nil {
+					log.Println(err)
+				}
+			}
+		}()
+	} else {
+		srv.Cfg.SyncUpload = true
+	}
+	return DB, nil
+}
+
+func initFileStorage(srv *ServerConfig) error {
+	if srv.Cfg.InitDownload {
+		err := srv.Storage.DownloadStorage(srv.Cfg.StoreFile)
+		if err != nil {
+			return err
+		}
+	}
+	if srv.Cfg.StoreInterval != 0 {
+		go func() {
+			uploadTimer := time.NewTicker(srv.Cfg.StoreInterval)
+			for {
+				<-uploadTimer.C
+				err := srv.Storage.UploadStorage(srv.Cfg.StoreFile)
+				if err != nil {
+					log.Println(err.Error())
+				}
+			}
+		}()
+	} else {
+		srv.Cfg.SyncUpload = true
+	}
+	return nil
+}
+
+func uploadStorage() error {
+	return errors.New("UPLOAD TO DB IS NOT IMPLEMENTED")
 }
