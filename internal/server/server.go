@@ -56,19 +56,20 @@ func RunServer(srv *ServerConfig) {
 		}
 	}
 
-	if srv.Cfg.DBAddr != "" {
+	if false {
+		//if srv.Cfg.DBAddr != "" {
 		if DB, err := initDBStorage(srv); err != nil {
 			log.Println(err)
 		} else {
 			srv.Cfg.DB = DB
 			defer srv.Cfg.DB.Close()
 		}
-		//} else if srv.Cfg.StoreFile != "" {
+	} else if srv.Cfg.StoreFile != "" {
+
+		if err := initFileStorage(srv); err != nil {
+			log.Println(err)
+		}
 	}
-	if err := initFileStorage(srv); err != nil {
-		log.Println(err)
-	}
-	//}
 
 	log.Println("SERVER CONFIG: ", srv.Cfg)
 
