@@ -46,8 +46,7 @@ func (st *MetricStorage) GetHTML() (*template.Template, error) {
 
 	m := metric.Metric{}
 	for rows.Next() {
-		rows.Scan(&m.ID, &m.MType, &m.Value, &m.Delta, &m.Hash)
-		if err != nil {
+		if err := rows.Scan(&m.ID, &m.MType, &m.Value, &m.Delta, &m.Hash); err != nil {
 			return nil, err
 		}
 		mj, err := m.GetJSON()
@@ -55,6 +54,11 @@ func (st *MetricStorage) GetHTML() (*template.Template, error) {
 			return nil, err
 		}
 		html += "<p>" + string(mj) + "</p>"
+	}
+	if rows.Err() != nil {
+		if err != nil {
+			return nil, err
+		}
 	}
 	t, err := template.New("").Parse(html)
 	if err != nil {
@@ -115,9 +119,14 @@ func (st *MetricStorage) MetricExists(mName, mType string) (bool, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		rows.Scan(&exists)
-		if err != nil {
+
+		if err := rows.Scan(&exists); err != nil {
 			return exists, err
+		}
+	}
+	if rows.Err() != nil {
+		if err != nil {
+			return false, err
 		}
 	}
 	return exists, nil
@@ -151,7 +160,11 @@ func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
 
 	m := metric.Metric{}
 	for rows.Next() {
-		rows.Scan(&m.ID, &m.MType, &m.Value, &m.Delta, &m.Hash)
+		if err := rows.Scan(&m.ID, &m.MType, &m.Value, &m.Delta, &m.Hash); err != nil {
+			return metric.Metric{}, err
+		}
+	}
+	if rows.Err() != nil {
 		if err != nil {
 			return metric.Metric{}, err
 		}
@@ -260,13 +273,15 @@ func (st *MetricStorage) tableExists() (bool, error) {
 	SELECT EXISTS(SELECT table_name FROM information_schema.columns WHERE table_name = 'metrics')`)
 	if err != nil {
 		return exists, err
-	} else {
-		for rows.Next() {
-			rows.Scan(&exists)
-			if err != nil {
-				return exists, err
-			}
+	}
+	for rows.Next() {
+		rows.Scan(&exists)
+		if err != nil {
+			return exists, err
 		}
+	}
+	if rows.Err() != nil {
+		return exists, err
 	}
 	return exists, nil
 }
