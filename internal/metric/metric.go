@@ -15,7 +15,7 @@ const Schema = `
 		mname CHARACTER VARYING PRIMARY KEY,
 		mtype CHARACTER VARYING,
 		mval DOUBLE PRECISION,
-		mdel INTEGER,
+		mdel BIGINT,
 		mhash CHARACTER VARYING
 	)`
 
