@@ -55,10 +55,9 @@ func (st *MetricStorage) GetHTML() (*template.Template, error) {
 		}
 		html += "<p>" + string(mj) + "</p>"
 	}
-	if rows.Err() != nil {
-		if err != nil {
-			return nil, err
-		}
+	if err := rows.Err(); err != nil {
+		return nil, err
+
 	}
 	t, err := template.New("").Parse(html)
 	if err != nil {
@@ -124,10 +123,9 @@ func (st *MetricStorage) MetricExists(mName, mType string) (bool, error) {
 			return exists, err
 		}
 	}
-	if rows.Err() != nil {
-		if err != nil {
-			return false, err
-		}
+	if err := rows.Err(); err != nil {
+		return false, err
+
 	}
 	return exists, nil
 }
@@ -164,10 +162,9 @@ func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
 			return metric.Metric{}, err
 		}
 	}
-	if rows.Err() != nil {
-		if err != nil {
-			return metric.Metric{}, err
-		}
+	if err := rows.Err(); err != nil {
+		return metric.Metric{}, err
+
 	}
 	if (m == metric.Metric{}) {
 		err := errors.New("cannot get: metric <" + name + "> doesn't exist")
