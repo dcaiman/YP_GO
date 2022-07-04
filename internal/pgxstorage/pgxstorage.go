@@ -109,9 +109,17 @@ func (st *MetricStorage) UpdateMetricFromStruct(m metric.Metric) error {
 }
 
 func (st *MetricStorage) MetricExists(mName, mType string) (bool, error) {
+	var rows *sql.Rows
+	var err error
 	exists := false
-	rows, err := st.DB.Query(`
-	SELECT EXISTS(SELECT 1 FROM metrics WHERE mname = $1 AND mtype = $2)`, mName, mType)
+	if mType == "" {
+		rows, err = st.DB.Query(`
+		SELECT EXISTS(SELECT 1 FROM metrics WHERE mname = $1)`, mName)
+	} else {
+		rows, err = st.DB.Query(`
+		SELECT EXISTS(SELECT 1 FROM metrics WHERE mname = $1 AND mtype = $2)`, mName, mType)
+	}
+
 	if err != nil {
 		return exists, err
 	}
@@ -149,6 +157,14 @@ func (st *MetricStorage) NewMetric(mName, mType, hashKey string, value *float64,
 }
 
 func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
+	exists, err := st.MetricExists(name, "")
+	if err != nil {
+		return metric.Metric{}, err
+	}
+	if !exists {
+		err := errors.New("cannot get: metric <" + name + "> doesn't exist")
+		return metric.Metric{}, err
+	}
 	rows, err := st.DB.Query(`
 	SELECT * FROM metrics WHERE mname = $1`, name)
 	if err != nil {
@@ -165,10 +181,6 @@ func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
 	if err := rows.Err(); err != nil {
 		return metric.Metric{}, err
 
-	}
-	if (m == metric.Metric{}) {
-		err := errors.New("cannot get: metric <" + name + "> doesn't exist")
-		return metric.Metric{}, err
 	}
 	return m, nil
 }
