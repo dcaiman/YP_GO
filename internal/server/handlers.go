@@ -82,13 +82,13 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 		}
 		if err != nil {
 			log.Println(err.Error())
-			http.Error(w, "UPDVAL "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	} else {
 		if err := srv.Storage.UpdateMetricFromStruct(m); err != nil {
 			log.Println(err.Error())
-			http.Error(w, "UPDSTR "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		return
