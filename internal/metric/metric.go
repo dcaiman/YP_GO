@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"text/template"
 )
 
 const Schema = `
@@ -20,21 +19,24 @@ const Schema = `
 	)`
 
 type MStorage interface {
-	Init(custom string)
+	NewMetric(m Metric) error
+	GetMetric(name string) (Metric, error)
+	GetAllMetrics() ([]Metric, error)
+
+	MetricExists(name string) (bool, error)
 	AccessCheck(ctx context.Context) error
-	DownloadStorage() error
-	UploadStorage() error
-	GetHTML() (*template.Template, error)
+
 	UpdateMetricFromJSON(content []byte) error
 	UpdateMetricFromStruct(m Metric) error
-	MetricExists(mName, mType string) (bool, error)
-	NewMetric(mName, mType, hashKey string, value *float64, delta *int64) error
-	GetMetric(name string) (Metric, error)
-	UpdateValue(name, hashKey string, val float64) error
-	UpdateDelta(name, hashKey string, val int64) error
-	AddDelta(name, hashKey string, val int64) error
-	IncreaseDelta(name, hashKey string) error
-	ResetDelta(name, hashKey string) error
+
+	UpdateValue(name string, val float64) error
+	UpdateDelta(name string, del int64) error
+	AddDelta(name string, del int64) error
+	IncreaseDelta(name string) error
+	ResetDelta(name string) error
+
+	DownloadStorage() error
+	UploadStorage() error
 }
 
 type Metric struct {
@@ -76,13 +78,9 @@ func (m Metric) GetJSON() ([]byte, error) {
 	return mj, nil
 }
 
-func (m *Metric) SetFromJSON(content []byte) (Metric, error) {
-	return SetFromJSON(m, content)
-}
-
-func SetFromJSON(m *Metric, content []byte) (Metric, error) {
+func (m *Metric) SetFromJSON(content []byte) error {
 	if err := json.Unmarshal(content, m); err != nil {
-		return *m, err
+		return err
 	}
-	return *m, nil
+	return nil
 }

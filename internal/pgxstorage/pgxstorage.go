@@ -4,100 +4,52 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
-	"text/template"
 
 	"github.com/dcaiman/YP_GO/internal/metric"
 )
 
 type MetricStorage struct {
-	DB   *sql.DB
-	Path string
+	DB      *sql.DB
+	HashKey string
+	Addr    string
 }
 
-func (st *MetricStorage) Init(path string) {
-	tmp, err := sql.Open("pgx", path)
-	if err != nil {
-		log.Println(err.Error())
-	}
-	st.DB = tmp
-	st.Path = path
-
-	if err = st.tableCreate(); err != nil {
-		log.Println(err.Error())
-	}
-
-}
-
-func (st *MetricStorage) AccessCheck(ctx context.Context) error {
-	if err := st.DB.PingContext(ctx); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (st *MetricStorage) GetHTML() (*template.Template, error) {
-	html := "METRICS LIST:"
-	rows, err := st.DB.Query(`SELECT * FROM metrics `)
+func New(dbAddr, hashKey string) (*MetricStorage, error) {
+	tmpDB, err := sql.Open("pgx", dbAddr)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	m := metric.Metric{}
-	for rows.Next() {
-		if err := rows.Scan(&m.ID, &m.MType, &m.Value, &m.Delta, &m.Hash); err != nil {
-			return nil, err
-		}
-		mj, err := m.GetJSON()
-		if err != nil {
-			return nil, err
-		}
-		html += "<p>" + string(mj) + "</p>"
+	ms := &MetricStorage{
+		HashKey: hashKey,
+		DB:      tmpDB,
+		Addr:    dbAddr,
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
 
-	}
-	t, err := template.New("").Parse(html)
+	exists, err := ms.tableExists()
 	if err != nil {
 		return nil, err
 	}
-	return t, nil
-}
-
-func (st *MetricStorage) UploadStorage() error {
-	log.Println("NO NEED TO UPLOAD USING DB")
-	return nil
-}
-
-func (st *MetricStorage) DownloadStorage() error {
-	log.Println("NO NEED TO DOWNLOAD USING DB")
-	return nil
-}
-
-func (st *MetricStorage) UpdateMetricFromJSON(content []byte) error {
-	m, err := metric.SetFromJSON(&metric.Metric{}, content)
-	if err != nil {
-		return err
+	if exists {
+		return ms, nil
 	}
-	return st.UpdateMetricFromStruct(m)
+	if err = ms.tableCreate(); err != nil {
+		return nil, err
+	}
+	return ms, nil
 }
 
-func (st *MetricStorage) UpdateMetricFromStruct(m metric.Metric) error {
-	exists, err := st.MetricExists(m.ID, m.MType)
+func (st *MetricStorage) Close() {
+	st.DB.Close()
+}
+
+func (st *MetricStorage) NewMetric(m metric.Metric) error {
+	exists, err := st.MetricExists(m.ID)
 	if err != nil {
 		return err
 	}
 	if exists {
-		_, err := st.DB.Exec(`
-		UPDATE metrics
-		SET mtype = $2, mval = $3, mdel = $4, mhash = $5
-		WHERE mname = $1`, m.ID, m.MType, m.Value, m.Delta, m.Hash)
-		if err != nil {
-			return err
-		}
-		return nil
+		err := errors.New("cannot create: metric <" + m.ID + "> already exists")
+		return err
 	}
 	_, err = st.DB.Exec(`
 	INSERT INTO metrics VALUES 
@@ -108,56 +60,8 @@ func (st *MetricStorage) UpdateMetricFromStruct(m metric.Metric) error {
 	return nil
 }
 
-func (st *MetricStorage) MetricExists(mName, mType string) (bool, error) {
-	var rows *sql.Rows
-	var err error
-	exists := false
-	if mType == "" {
-		rows, err = st.DB.Query(`
-		SELECT EXISTS(SELECT 1 FROM metrics WHERE mname = $1)`, mName)
-	} else {
-		rows, err = st.DB.Query(`
-		SELECT EXISTS(SELECT 1 FROM metrics WHERE mname = $1 AND mtype = $2)`, mName, mType)
-	}
-
-	if err != nil {
-		return exists, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-
-		if err := rows.Scan(&exists); err != nil {
-			return exists, err
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return false, err
-
-	}
-	return exists, nil
-}
-
-func (st *MetricStorage) NewMetric(mName, mType, hashKey string, value *float64, delta *int64) error {
-	m := &metric.Metric{
-		ID:    mName,
-		MType: mType,
-		Value: value,
-		Delta: delta,
-	}
-	m.UpdateHash(hashKey)
-
-	_, err := st.DB.Exec(`
-	INSERT INTO metrics VALUES 
-	($1, $2, $3, $4, $5)`, m.ID, m.MType, m.Value, m.Delta, m.Hash)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
-	exists, err := st.MetricExists(name, "")
+	exists, err := st.MetricExists(name)
 	if err != nil {
 		return metric.Metric{}, err
 	}
@@ -165,8 +69,7 @@ func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
 		err := errors.New("cannot get: metric <" + name + "> doesn't exist")
 		return metric.Metric{}, err
 	}
-	rows, err := st.DB.Query(`
-	SELECT * FROM metrics WHERE mname = $1`, name)
+	rows, err := st.DB.Query(`SELECT * FROM metrics WHERE mname = $1`, name)
 	if err != nil {
 		return metric.Metric{}, err
 	}
@@ -180,18 +83,99 @@ func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
 	}
 	if err := rows.Err(); err != nil {
 		return metric.Metric{}, err
-
 	}
 	return m, nil
 }
 
-func (st *MetricStorage) UpdateValue(name, hashKey string, val float64) error {
+func (st *MetricStorage) GetAllMetrics() ([]metric.Metric, error) {
+	rows, err := st.DB.Query(`SELECT * FROM metrics`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	allMetrics := []metric.Metric{}
+	for rows.Next() {
+		m := metric.Metric{}
+		if err := rows.Scan(&m.ID, &m.MType, &m.Value, &m.Delta, &m.Hash); err != nil {
+			return nil, err
+		}
+		allMetrics = append(allMetrics, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+
+	}
+	return allMetrics, nil
+}
+
+func (st *MetricStorage) MetricExists(name string) (bool, error) {
+	var rows *sql.Rows
+	var err error
+	exists := false
+
+	rows, err = st.DB.Query(`SELECT EXISTS(SELECT 1 FROM metrics WHERE mname = $1)`, name)
+	if err != nil {
+		return exists, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		if err := rows.Scan(&exists); err != nil {
+			return exists, err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return exists, err
+
+	}
+	return exists, nil
+}
+
+func (st *MetricStorage) AccessCheck(ctx context.Context) error {
+	if err := st.DB.PingContext(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (st *MetricStorage) UpdateMetricFromJSON(content []byte) error {
+	m := metric.Metric{}
+	err := m.SetFromJSON(content)
+	if err != nil {
+		return err
+	}
+	return st.UpdateMetricFromStruct(m)
+}
+
+func (st *MetricStorage) UpdateMetricFromStruct(m metric.Metric) error {
+	exists, err := st.MetricExists(m.ID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		_, err := st.DB.Exec(`
+		UPDATE metrics
+		SET mtype = $2, mval = $3, mdel = $4, mhash = $5
+		WHERE mname = $1`, m.ID, m.MType, m.Value, m.Delta, m.Hash)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	if err := st.NewMetric(m); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (st *MetricStorage) UpdateValue(name string, val float64) error {
 	m, err := st.GetMetric(name)
 	if err != nil {
 		return err
 	}
 	m.Value = &val
-	err = m.UpdateHash(hashKey)
+	err = m.UpdateHash(st.HashKey)
 	if err != nil {
 		return err
 	}
@@ -202,74 +186,47 @@ func (st *MetricStorage) UpdateValue(name, hashKey string, val float64) error {
 	return nil
 }
 
-func (st *MetricStorage) UpdateDelta(name, hashKey string, val int64) error {
+func (st *MetricStorage) UpdateDelta(name string, del int64) error {
 	m, err := st.GetMetric(name)
 	if err != nil {
 		return err
 	}
-	m.Delta = &val
-	err = m.UpdateHash(hashKey)
-	if err != nil {
+	m.Delta = &del
+	if err := m.UpdateHash(st.HashKey); err != nil {
 		return err
 	}
-	err = st.UpdateMetricFromStruct(m)
-	if err != nil {
+	if err := st.UpdateMetricFromStruct(m); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (st *MetricStorage) AddDelta(name, hashKey string, val int64) error {
+func (st *MetricStorage) AddDelta(name string, del int64) error {
 	m, err := st.GetMetric(name)
 	if err != nil {
 		return err
 	}
-	newVal := *m.Delta + val
+	newVal := *m.Delta + del
 	m.Delta = &newVal
-	err = m.UpdateHash(hashKey)
-	if err != nil {
+	if err := m.UpdateHash(st.HashKey); err != nil {
 		return err
 	}
-	err = st.UpdateMetricFromStruct(m)
-	if err != nil {
+	if err = st.UpdateMetricFromStruct(m); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (st *MetricStorage) IncreaseDelta(name, hashKey string) error {
-	return st.AddDelta(name, hashKey, 1)
+func (st *MetricStorage) IncreaseDelta(name string) error {
+	return st.AddDelta(name, 1)
 }
 
-func (st *MetricStorage) ResetDelta(name, hashKey string) error {
-	m, err := st.GetMetric(name)
-	if err != nil {
-		return err
-	}
-	var newVal int64 = 0
-	m.Delta = &newVal
-	err = m.UpdateHash(hashKey)
-	if err != nil {
-		return err
-	}
-	err = st.UpdateMetricFromStruct(m)
-	if err != nil {
-		return err
-	}
-	return nil
+func (st *MetricStorage) ResetDelta(name string) error {
+	return st.UpdateDelta(name, 0)
 }
 
 func (st *MetricStorage) tableCreate() error {
-	exists, err := st.tableExists()
-	if err != nil {
-		return err
-	}
-	if exists {
-		err := errors.New("table <metrics> already exists")
-		return err
-	}
-	_, err = st.DB.Exec(`CREATE TABLE metrics` + metric.Schema)
-
+	_, err := st.DB.Exec(`CREATE TABLE metrics` + metric.Schema)
 	if err != nil {
 		return err
 	}
@@ -284,8 +241,7 @@ func (st *MetricStorage) tableExists() (bool, error) {
 		return exists, err
 	}
 	for rows.Next() {
-		rows.Scan(&exists)
-		if err != nil {
+		if err := rows.Scan(&exists); err != nil {
 			return exists, err
 		}
 	}
@@ -295,12 +251,10 @@ func (st *MetricStorage) tableExists() (bool, error) {
 	return exists, nil
 }
 
-/*
-func (st *MetricStorage) tableDrop() error {
-	_, err := st.DB.Exec(`DROP TABLE metrics`)
-	if err != nil {
-		return err
-	}
+func (st *MetricStorage) DownloadStorage() error {
 	return nil
 }
-*/
+
+func (st *MetricStorage) UploadStorage() error {
+	return nil
+}

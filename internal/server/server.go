@@ -53,32 +53,37 @@ func RunServer(srv *ServerConfig) {
 
 	//if false {
 	if srv.Cfg.DBAddr != "" {
-		srv.Storage = &pgxstorage.MetricStorage{}
-		srv.Storage.Init(srv.Cfg.DBAddr)
-	} else if srv.Cfg.StoreFile != "" {
-		srv.Storage = &internalstorage.MetricStorage{}
-		srv.Storage.Init(srv.Cfg.StoreFile)
-	}
-
-	if srv.Cfg.InitDownload {
-		err := srv.Storage.DownloadStorage()
+		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey)
 		if err != nil {
-			log.Println(err.Error())
+			log.Println(err)
+			return
 		}
-	}
-	if srv.Cfg.StoreInterval != 0 {
-		go func() {
-			uploadTimer := time.NewTicker(srv.Cfg.StoreInterval)
-			for {
-				<-uploadTimer.C
-				err := srv.Storage.UploadStorage()
-				if err != nil {
-					log.Println(err.Error())
-				}
+		defer dbStorage.Close()
+		srv.Storage = dbStorage
+	} else if srv.Cfg.StoreFile != "" {
+		fileStorage := internalstorage.New(srv.Cfg.StoreFile, srv.Cfg.HashKey)
+		srv.Storage = fileStorage
+
+		if srv.Cfg.InitDownload {
+			err := srv.Storage.DownloadStorage()
+			if err != nil {
+				log.Println(err.Error())
 			}
-		}()
-	} else {
-		srv.Cfg.SyncUpload = true
+		}
+		if srv.Cfg.StoreInterval != 0 {
+			go func() {
+				uploadTimer := time.NewTicker(srv.Cfg.StoreInterval)
+				for {
+					<-uploadTimer.C
+					err := srv.Storage.UploadStorage()
+					if err != nil {
+						log.Println(err.Error())
+					}
+				}
+			}()
+		} else {
+			srv.Cfg.SyncUpload = true
+		}
 	}
 
 	log.Println("SERVER CONFIG: ", srv.Cfg)

@@ -7,9 +7,14 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"text/template"
 
 	"github.com/dcaiman/YP_GO/internal/metric"
 	"github.com/go-chi/chi/v5"
+)
+
+const (
+	templateHandlerGetAll = "METRICS LIST: <p>{{range .}}{{.ID}}: {{.Value}}{{.Delta}} ({{.MType}})</p>{{end}}"
 )
 
 var supportedTypes = [...]string{
@@ -44,8 +49,9 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	m, err := metric.SetFromJSON(&metric.Metric{}, content)
-	if err != nil {
+
+	m := metric.Metric{}
+	if err := m.SetFromJSON(content); err != nil {
 		log.Println(err.Error())
 		return
 	}
@@ -66,7 +72,7 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	exists, err := srv.Storage.MetricExists(m.ID, m.MType)
+	exists, err := srv.Storage.MetricExists(m.ID)
 	if err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -76,9 +82,9 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 	if exists {
 		switch m.MType {
 		case Gauge:
-			err = srv.Storage.UpdateValue(m.ID, srv.Cfg.HashKey, *m.Value)
+			err = srv.Storage.UpdateValue(m.ID, *m.Value)
 		case Counter:
-			err = srv.Storage.AddDelta(m.ID, srv.Cfg.HashKey, *m.Delta)
+			err = srv.Storage.AddDelta(m.ID, *m.Delta)
 		}
 		if err != nil {
 			log.Println(err.Error())
@@ -124,7 +130,7 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 	}
 
 	mName := chi.URLParam(r, "name")
-	exists, err := srv.Storage.MetricExists(mName, mType)
+	exists, err := srv.Storage.MetricExists(mName)
 	if err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -133,10 +139,10 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 	if exists {
 		switch mType {
 		case Gauge:
-			err = srv.Storage.UpdateValue(mName, srv.Cfg.HashKey, mValue)
+			err = srv.Storage.UpdateValue(mName, mValue)
 		case Counter:
 			fmt.Println(mDelta)
-			err = srv.Storage.AddDelta(mName, srv.Cfg.HashKey, mDelta)
+			err = srv.Storage.AddDelta(mName, mDelta)
 		}
 		if err != nil {
 			log.Println(err.Error())
@@ -144,8 +150,14 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	} else {
-		err = srv.Storage.NewMetric(mName, mType, srv.Cfg.HashKey, &mValue, &mDelta)
-		if err != nil {
+		m := metric.Metric{
+			ID:    mName,
+			MType: mType,
+			Value: &mValue,
+			Delta: &mDelta,
+		}
+		m.UpdateHash(srv.Cfg.HashKey)
+		if err = srv.Storage.NewMetric(m); err != nil {
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -159,13 +171,19 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 
 func (srv *ServerConfig) handlerGetAll(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-	t, err := srv.Storage.GetHTML()
+	t, err := template.New("").Parse(templateHandlerGetAll)
 	if err != nil {
-		log.Println("cannot get: " + err.Error())
+		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	t.Execute(w, &srv.Storage)
+	allMetrics, err := srv.Storage.GetAllMetrics()
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	t.Execute(w, allMetrics)
 }
 
 func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Request) {
@@ -176,8 +194,8 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	mReq, err := metric.SetFromJSON(&metric.Metric{}, content)
-	if err != nil {
+	mReq := metric.Metric{}
+	if err := mReq.SetFromJSON(content); err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

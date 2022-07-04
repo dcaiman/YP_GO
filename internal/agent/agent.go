@@ -73,8 +73,11 @@ type EnvConfig struct {
 	ReportInterval time.Duration `env:"REPORT_INTERVAL"`
 	SrvAddr        string        `env:"ADDRESS"`
 	HashKey        string        `env:"KEY"`
-	EnvConfig      bool
-	ArgConfig      bool
+
+	CType string
+
+	EnvConfig bool
+	ArgConfig bool
 }
 
 type AgentConfig struct {
@@ -83,9 +86,6 @@ type AgentConfig struct {
 }
 
 func RunAgent(agn *AgentConfig) {
-	agn.Storage = &internalstorage.MetricStorage{}
-	agn.Storage.Init("")
-
 	if agn.Cfg.ArgConfig {
 		flag.StringVar(&agn.Cfg.SrvAddr, "a", agn.Cfg.SrvAddr, "server address")
 		flag.DurationVar(&agn.Cfg.ReportInterval, "r", agn.Cfg.ReportInterval, "report interval")
@@ -99,6 +99,9 @@ func RunAgent(agn *AgentConfig) {
 		}
 	}
 	log.Println("AGENT CONFIG: ", agn.Cfg)
+
+	fileStorage := internalstorage.New("", agn.Cfg.HashKey)
+	agn.Storage = fileStorage
 
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -123,29 +126,44 @@ func RunAgent(agn *AgentConfig) {
 
 func prepareStorage(agn *AgentConfig) {
 	for i := range runtimeGauges {
-		agn.Storage.NewMetric(runtimeGauges[i], Gauge, agn.Cfg.HashKey, nil, nil)
+		m := metric.Metric{
+			ID:    runtimeGauges[i],
+			MType: Gauge,
+		}
+		m.UpdateHash(agn.Cfg.HashKey)
+		agn.Storage.NewMetric(m)
 	}
 	for i := range customGauges {
-		agn.Storage.NewMetric(customGauges[i], Gauge, agn.Cfg.HashKey, nil, nil)
+		m := metric.Metric{
+			ID:    customGauges[i],
+			MType: Gauge,
+		}
+		m.UpdateHash(agn.Cfg.HashKey)
+		agn.Storage.NewMetric(m)
 	}
 	for i := range counters {
-		agn.Storage.NewMetric(counters[i], Counter, agn.Cfg.HashKey, nil, nil)
+		m := metric.Metric{
+			ID:    counters[i],
+			MType: Counter,
+		}
+		m.UpdateHash(agn.Cfg.HashKey)
+		agn.Storage.NewMetric(m)
 	}
 }
 
 func poll(agn *AgentConfig) {
 	for i := range runtimeGauges {
-		if err := agn.Storage.UpdateValue(runtimeGauges[i], agn.Cfg.HashKey, getRuntimeMetric(runtimeGauges[i])); err != nil {
+		if err := agn.Storage.UpdateValue(runtimeGauges[i], getRuntimeMetric(runtimeGauges[i])); err != nil {
 			log.Println(err.Error())
 		}
 	}
 	for i := range customGauges {
-		if err := agn.Storage.UpdateValue(customGauges[i], agn.Cfg.HashKey, 100*rand.Float64()); err != nil {
+		if err := agn.Storage.UpdateValue(customGauges[i], 100*rand.Float64()); err != nil {
 			log.Println(err.Error())
 		}
 	}
 	for i := range counters {
-		if err := agn.Storage.IncreaseDelta(counters[i], agn.Cfg.HashKey); err != nil {
+		if err := agn.Storage.IncreaseDelta(counters[i]); err != nil {
 			log.Println(err.Error())
 		}
 	}
@@ -153,13 +171,13 @@ func poll(agn *AgentConfig) {
 
 func report(agn *AgentConfig) {
 	for i := range runtimeGauges {
-		go sendMetric(runtimeGauges[i], JSONCT, agn)
+		go sendMetric(runtimeGauges[i], agn)
 	}
 	for i := range customGauges {
-		go sendMetric(customGauges[i], JSONCT, agn)
+		go sendMetric(customGauges[i], agn)
 	}
 	for i := range counters {
-		go sendMetric(counters[i], JSONCT, agn)
+		go sendMetric(counters[i], agn)
 	}
 }
 
@@ -169,7 +187,7 @@ func getRuntimeMetric(name string) float64 {
 	return reflect.Indirect(reflect.ValueOf(mem)).FieldByName(name).Convert(reflect.TypeOf(0.0)).Float()
 }
 
-func sendMetric(name, contentType string, agn *AgentConfig) error {
+func sendMetric(name string, agn *AgentConfig) error {
 	var url, val string
 	var body []byte
 
@@ -179,7 +197,7 @@ func sendMetric(name, contentType string, agn *AgentConfig) error {
 		return err
 	}
 
-	switch contentType {
+	switch agn.Cfg.CType {
 	case TextPlainCT:
 		switch m.MType {
 		case Gauge:
@@ -202,18 +220,18 @@ func sendMetric(name, contentType string, agn *AgentConfig) error {
 		url = agn.Cfg.SrvAddr + "/update/"
 		body = tmpBody
 	default:
-		err := errors.New("cannot send: unsupported content type <" + contentType + ">")
+		err := errors.New("cannot send: unsupported content type <" + agn.Cfg.CType + ">")
 		log.Println(err)
 		return err
 	}
-	res, err := customPostRequest(HTTPStr+url, contentType, m.Hash, bytes.NewBuffer(body))
+	res, err := customPostRequest(HTTPStr+url, agn.Cfg.CType, m.Hash, bytes.NewBuffer(body))
 	if err != nil {
 		log.Println(err.Error())
 		return err
 	}
 	defer res.Body.Close()
 	if m.MType == Counter {
-		agn.Storage.ResetDelta(name, agn.Cfg.HashKey)
+		agn.Storage.ResetDelta(name)
 	}
 	log.Println(res.Status, res.Request.URL)
 	return nil
