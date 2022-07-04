@@ -7,8 +7,13 @@ import (
 	"log"
 	"os"
 	"sync"
+	"text/template"
 
 	"github.com/dcaiman/YP_GO/internal/metric"
+)
+
+const (
+	templateHandlerGetAll = "METRICS LIST: <p>{{range .Metrics}}{{.ID}}: {{.Value}}{{.Delta}} ({{.MType}})</p>{{end}}"
 )
 
 type MetricStorage struct {
@@ -30,6 +35,14 @@ func (st *MetricStorage) AccessCheck(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (st *MetricStorage) GetHTML() (*template.Template, error) {
+	t, err := template.New("").Parse(templateHandlerGetAll)
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 func (st *MetricStorage) UploadStorage() error {
@@ -86,25 +99,26 @@ func (st *MetricStorage) updateMetricFromJSON(content []byte) error {
 	return nil
 }
 
-func (st *MetricStorage) UpdateMetricFromStruct(m metric.Metric) {
+func (st *MetricStorage) UpdateMetricFromStruct(m metric.Metric) error {
 	st.Lock()
 	defer st.Unlock()
 	st.updateMetricFromStruct(m)
+	return nil
 }
 
 func (st *MetricStorage) updateMetricFromStruct(m metric.Metric) {
 	st.Metrics[m.ID] = m
 }
 
-func (st *MetricStorage) MetricExists(mName, mType string) bool {
+func (st *MetricStorage) MetricExists(mName, mType string) (bool, error) {
 	st.Lock()
 	defer st.Unlock()
 	if m, ok := st.Metrics[mName]; ok {
 		if m.MType == mType {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func (st *MetricStorage) NewMetric(mName, mType, hashKey string, value *float64, delta *int64) error {
@@ -190,13 +204,7 @@ func (st *MetricStorage) AddDelta(name, hashKey string, val int64) error {
 }
 
 func (st *MetricStorage) IncreaseDelta(name, hashKey string) error {
-	st.Lock()
-	defer st.Unlock()
-	val := st.Metrics[name].Delta
-	if val == nil {
-		return st.updateDelta(name, hashKey, 1)
-	}
-	return st.updateDelta(name, hashKey, *val+1)
+	return st.AddDelta(name, hashKey, 1)
 }
 
 func (st *MetricStorage) ResetDelta(name, hashKey string) error {

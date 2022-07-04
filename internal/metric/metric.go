@@ -7,16 +7,27 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"text/template"
 )
+
+const Schema = `
+	(
+		mname CHARACTER VARYING PRIMARY KEY,
+		mtype CHARACTER VARYING,
+		mval DOUBLE PRECISION,
+		mdel INTEGER,
+		mhash CHARACTER VARYING
+	)`
 
 type MStorage interface {
 	Init(custom string)
 	AccessCheck(ctx context.Context) error
 	DownloadStorage() error
 	UploadStorage() error
+	GetHTML() (*template.Template, error)
 	UpdateMetricFromJSON(content []byte) error
-	UpdateMetricFromStruct(m Metric)
-	MetricExists(mName, mType string) bool
+	UpdateMetricFromStruct(m Metric) error
+	MetricExists(mName, mType string) (bool, error)
 	NewMetric(mName, mType, hashKey string, value *float64, delta *int64) error
 	GetMetric(name string) (Metric, error)
 	UpdateValue(name, hashKey string, val float64) error

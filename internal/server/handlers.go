@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"text/template"
 
 	"github.com/dcaiman/YP_GO/internal/metric"
 	"github.com/go-chi/chi/v5"
@@ -24,10 +23,6 @@ const (
 	TextPlainCT = "text/plain"
 	JSONCT      = "application/json"
 	HTTPStr     = "http://"
-)
-
-const (
-	templateHandlerGetAll = "METRICS LIST: <p>{{range .Metrics}}{{.ID}}: {{.Value}}{{.Delta}} ({{.MType}})<p>{{end}}"
 )
 
 func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +66,14 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if srv.Storage.MetricExists(m.ID, m.MType) {
+	exists, err := srv.Storage.MetricExists(m.ID, m.MType)
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if exists {
 		switch m.MType {
 		case Gauge:
 			err = srv.Storage.UpdateValue(m.ID, srv.Cfg.HashKey, *m.Value)
@@ -84,7 +86,11 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	} else {
-		srv.Storage.UpdateMetricFromStruct(m)
+		if err := srv.Storage.UpdateMetricFromStruct(m); err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
@@ -118,7 +124,13 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 	}
 
 	mName := chi.URLParam(r, "name")
-	if srv.Storage.MetricExists(mName, mType) {
+	exists, err := srv.Storage.MetricExists(mName, mType)
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if exists {
 		switch mType {
 		case Gauge:
 			err = srv.Storage.UpdateValue(mName, srv.Cfg.HashKey, mValue)
@@ -147,7 +159,7 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 
 func (srv *ServerConfig) handlerGetAll(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-	t, err := template.New("").Parse(templateHandlerGetAll)
+	t, err := srv.Storage.GetHTML()
 	if err != nil {
 		log.Println("cannot get: " + err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
