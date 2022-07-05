@@ -247,10 +247,10 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 			fmt.Println(*m1.Value)
 		}
 		if mRes.Delta != nil {
-			fmt.Println(*&mRes.Delta)
+			fmt.Println(*mRes.Delta)
 		}
 		if mRes.Value != nil {
-			fmt.Println(*&mRes.Value)
+			fmt.Println(*mRes.Value)
 		}
 		fmt.Println()
 	}
