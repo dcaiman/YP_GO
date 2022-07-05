@@ -42,6 +42,17 @@ func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http
 	}
 }
 
+func (srv *ServerConfig) handlerUpdateBatch(w http.ResponseWriter, r *http.Request) {
+	batch := []metric.Metric{}
+	for i := range batch {
+		if err := srv.Storage.UpdateMetricFromStruct(batch[i]); err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+}
+
 func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
 	content, err := io.ReadAll(r.Body)
 	if err != nil {

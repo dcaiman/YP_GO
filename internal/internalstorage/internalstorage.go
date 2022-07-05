@@ -121,8 +121,7 @@ func (st *MetricStorage) UpdateValue(name string, val float64) error {
 func (st *MetricStorage) updateValue(name string, val float64) error {
 	if m, ok := st.Metrics[name]; ok {
 		m.Value = &val
-		err := m.UpdateHash(st.HashKey)
-		if err != nil {
+		if err := m.UpdateHash(st.HashKey); err != nil {
 			return err
 		}
 		st.Metrics[name] = m
@@ -141,8 +140,7 @@ func (st *MetricStorage) UpdateDelta(name string, del int64) error {
 func (st *MetricStorage) updateDelta(name string, del int64) error {
 	if m, ok := st.Metrics[name]; ok {
 		m.Delta = &del
-		err := m.UpdateHash(st.HashKey)
-		if err != nil {
+		if err := m.UpdateHash(st.HashKey); err != nil {
 			return err
 		}
 		st.Metrics[name] = m

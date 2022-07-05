@@ -51,8 +51,8 @@ func RunServer(srv *ServerConfig) {
 		}
 	}
 
-	if false {
-		//if srv.Cfg.DBAddr != "" {
+	//if false {
+	if srv.Cfg.DBAddr != "" {
 		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey)
 		if err != nil {
 			log.Println(err)
@@ -99,6 +99,9 @@ func RunServer(srv *ServerConfig) {
 	mainRouter.Route("/update", func(r chi.Router) {
 		r.Post("/", Compresser(srv.handlerUpdateJSON))
 		r.Post("/{type}/{name}/{val}", Compresser(srv.handlerUpdateDirect))
+	})
+	mainRouter.Route("/updates", func(r chi.Router) {
+		r.Post("/", Compresser(srv.handlerUpdateBatch))
 	})
 	mainRouter.Route("/ping", func(r chi.Router) {
 		r.Get("/", Compresser(srv.handlerCheckDBConnection))

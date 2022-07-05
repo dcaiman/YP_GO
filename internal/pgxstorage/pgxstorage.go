@@ -175,8 +175,7 @@ func (st *MetricStorage) UpdateValue(name string, val float64) error {
 		return err
 	}
 	m.Value = &val
-	err = m.UpdateHash(st.HashKey)
-	if err != nil {
+	if err := m.UpdateHash(st.HashKey); err != nil {
 		return err
 	}
 	err = st.UpdateMetricFromStruct(m)

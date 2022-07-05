@@ -250,3 +250,17 @@ func customPostRequest(url, contentType, hash string, body io.Reader) (resp *htt
 	}
 	return http.DefaultClient.Do(req)
 }
+
+/*
+func getBatch(metricNames []string, agn *AgentConfig) ([]metric.Metric, error) {
+	batch := []metric.Metric{}
+	for i := range metricNames {
+		m, err := agn.Storage.GetMetric(metricNames[i])
+		if err != nil {
+			return nil, err
+		}
+		batch = append(batch, m)
+	}
+	return batch, nil
+}
+*/
