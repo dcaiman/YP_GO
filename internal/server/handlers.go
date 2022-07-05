@@ -240,8 +240,18 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 	if !reflect.DeepEqual(m1.Hash, mReq.Hash) { //
 		fmt.Println()
 		fmt.Println("STRANGE!!!")
-		fmt.Println(*m1.Delta, *m1.Value)
-		fmt.Println(*mRes.Delta, *mRes.Value)
+		if m1.Delta != nil {
+			fmt.Println(*m1.Delta)
+		}
+		if m1.Value != nil {
+			fmt.Println(*m1.Value)
+		}
+		if mRes.Delta != nil {
+			fmt.Println(*&mRes.Delta)
+		}
+		if mRes.Value != nil {
+			fmt.Println(*&mRes.Value)
+		}
 		fmt.Println()
 	}
 
