@@ -237,8 +237,11 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 	}
 
 	if tmp != mReq.Hash { //
-		log.Println(tmp, mRes.Hash)
+		fmt.Println()
 		fmt.Println("STRANGE!!!")
+		log.Println(tmp, "\n", mRes.Hash)
+		fmt.Println(mRes)
+		fmt.Println()
 	}
 
 	mResJSON, err := mRes.GetJSON()
