@@ -237,7 +237,7 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if reflect.DeepEqual(tmp, mReq.Hash) { //
+	if !reflect.DeepEqual(tmp, mReq.Hash) { //
 		fmt.Println()
 		fmt.Println("STRANGE!!!")
 		fmt.Println(tmp)
