@@ -108,7 +108,6 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		return
 	}
 
 	if srv.Cfg.SyncUpload {
@@ -219,15 +218,27 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 	}
 
 	mRes, err := srv.Storage.GetMetric(mReq.ID)
-	if err != nil || mRes.MType != mReq.MType {
+	if err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	if mRes.MType != mReq.MType {
+		http.Error(w, "cannot get: metric <"+mReq.ID+"> is not <"+mReq.MType+">", http.StatusNotFound)
+		return
+	}
+
+	tmp := mRes.Hash //
+
 	if err := mRes.UpdateHash(srv.Cfg.HashKey); err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if tmp != mReq.Hash { //
+		log.Println(tmp, mRes.Hash)
+		fmt.Println("STRANGE!!!")
 	}
 
 	mResJSON, err := mRes.GetJSON()
@@ -242,17 +253,21 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 
 func (srv *ServerConfig) handlerGetMetric(w http.ResponseWriter, r *http.Request) {
 	mType := chi.URLParam(r, "type")
-
 	if err := checkTypeSupport(mType); err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotImplemented)
 		return
 	}
 
-	m, err := srv.Storage.GetMetric(chi.URLParam(r, "name"))
-	if err != nil || m.MType != mType {
+	mName := chi.URLParam(r, "name")
+	m, err := srv.Storage.GetMetric(mName)
+	if err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if m.MType != mType {
+		http.Error(w, "cannot get: metric <"+mName+"> is not <"+mType+">", http.StatusNotFound)
 		return
 	}
 

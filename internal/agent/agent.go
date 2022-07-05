@@ -53,11 +53,11 @@ var runtimeGauges = [...]string{
 }
 
 var customGauges = [...]string{
-	"RandomValue",
+	"RandomValue7",
 }
 
 var counters = [...]string{
-	"PollCount",
+	"PollCount7",
 }
 
 const (
