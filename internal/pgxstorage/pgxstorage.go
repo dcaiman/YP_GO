@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
 
 	"github.com/dcaiman/YP_GO/internal/metric"
 )
 
 type MetricStorage struct {
+	sync.RWMutex
 	DB      *sql.DB
 	HashKey string
 	Addr    string
@@ -39,11 +41,19 @@ func New(dbAddr, hashKey string) (*MetricStorage, error) {
 }
 
 func (st *MetricStorage) Close() {
+	st.Lock()
+	defer st.Unlock()
 	st.DB.Close()
 }
 
 func (st *MetricStorage) NewMetric(m metric.Metric) error {
-	exists, err := st.MetricExists(m.ID)
+	st.Lock()
+	defer st.Unlock()
+	return st.newMetric(m)
+}
+
+func (st *MetricStorage) newMetric(m metric.Metric) error {
+	exists, err := st.metricExists(m.ID)
 	if err != nil {
 		return err
 	}
@@ -61,7 +71,13 @@ func (st *MetricStorage) NewMetric(m metric.Metric) error {
 }
 
 func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
-	exists, err := st.MetricExists(name)
+	st.Lock()
+	defer st.Unlock()
+	return st.getMetric(name)
+}
+
+func (st *MetricStorage) getMetric(name string) (metric.Metric, error) {
+	exists, err := st.metricExists(name)
 	if err != nil {
 		return metric.Metric{}, err
 	}
@@ -88,6 +104,8 @@ func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
 }
 
 func (st *MetricStorage) GetAllMetrics() ([]metric.Metric, error) {
+	st.Lock()
+	defer st.Unlock()
 	rows, err := st.DB.Query(`SELECT * FROM metrics`)
 	if err != nil {
 		return nil, err
@@ -110,6 +128,12 @@ func (st *MetricStorage) GetAllMetrics() ([]metric.Metric, error) {
 }
 
 func (st *MetricStorage) MetricExists(name string) (bool, error) {
+	st.Lock()
+	defer st.Unlock()
+	return st.metricExists(name)
+}
+
+func (st *MetricStorage) metricExists(name string) (bool, error) {
 	var rows *sql.Rows
 	var err error
 	exists := false
@@ -133,6 +157,8 @@ func (st *MetricStorage) MetricExists(name string) (bool, error) {
 }
 
 func (st *MetricStorage) AccessCheck(ctx context.Context) error {
+	st.Lock()
+	defer st.Unlock()
 	if err := st.DB.PingContext(ctx); err != nil {
 		return err
 	}
@@ -140,16 +166,24 @@ func (st *MetricStorage) AccessCheck(ctx context.Context) error {
 }
 
 func (st *MetricStorage) UpdateMetricFromJSON(content []byte) error {
+	st.Lock()
+	defer st.Unlock()
 	m := metric.Metric{}
 	err := m.SetFromJSON(content)
 	if err != nil {
 		return err
 	}
-	return st.UpdateMetricFromStruct(m)
+	return st.updateMetricFromStruct(m)
 }
 
 func (st *MetricStorage) UpdateMetricFromStruct(m metric.Metric) error {
-	exists, err := st.MetricExists(m.ID)
+	st.Lock()
+	defer st.Unlock()
+	return st.updateMetricFromStruct(m)
+}
+
+func (st *MetricStorage) updateMetricFromStruct(m metric.Metric) error {
+	exists, err := st.metricExists(m.ID)
 	if err != nil {
 		return err
 	}
@@ -163,14 +197,16 @@ func (st *MetricStorage) UpdateMetricFromStruct(m metric.Metric) error {
 		}
 		return nil
 	}
-	if err := st.NewMetric(m); err != nil {
+	if err := st.newMetric(m); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (st *MetricStorage) UpdateValue(name string, val float64) error {
-	m, err := st.GetMetric(name)
+	st.Lock()
+	defer st.Unlock()
+	m, err := st.getMetric(name)
 	if err != nil {
 		return err
 	}
@@ -178,7 +214,7 @@ func (st *MetricStorage) UpdateValue(name string, val float64) error {
 	if err := m.UpdateHash(st.HashKey); err != nil {
 		return err
 	}
-	err = st.UpdateMetricFromStruct(m)
+	err = st.updateMetricFromStruct(m)
 	if err != nil {
 		return err
 	}
@@ -186,7 +222,13 @@ func (st *MetricStorage) UpdateValue(name string, val float64) error {
 }
 
 func (st *MetricStorage) UpdateDelta(name string, del int64) error {
-	m, err := st.GetMetric(name)
+	st.Lock()
+	defer st.Unlock()
+	return st.updateDelta(name, del)
+}
+
+func (st *MetricStorage) updateDelta(name string, del int64) error {
+	m, err := st.getMetric(name)
 	if err != nil {
 		return err
 	}
@@ -194,14 +236,20 @@ func (st *MetricStorage) UpdateDelta(name string, del int64) error {
 	if err := m.UpdateHash(st.HashKey); err != nil {
 		return err
 	}
-	if err := st.UpdateMetricFromStruct(m); err != nil {
+	if err := st.updateMetricFromStruct(m); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (st *MetricStorage) AddDelta(name string, del int64) error {
-	m, err := st.GetMetric(name)
+	st.Lock()
+	defer st.Unlock()
+	return st.addDelta(name, del)
+}
+
+func (st *MetricStorage) addDelta(name string, del int64) error {
+	m, err := st.getMetric(name)
 	if err != nil {
 		return err
 	}
@@ -210,18 +258,22 @@ func (st *MetricStorage) AddDelta(name string, del int64) error {
 	if err := m.UpdateHash(st.HashKey); err != nil {
 		return err
 	}
-	if err = st.UpdateMetricFromStruct(m); err != nil {
+	if err = st.updateMetricFromStruct(m); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (st *MetricStorage) IncreaseDelta(name string) error {
-	return st.AddDelta(name, 1)
+	st.Lock()
+	defer st.Unlock()
+	return st.addDelta(name, 1)
 }
 
 func (st *MetricStorage) ResetDelta(name string) error {
-	return st.UpdateDelta(name, 0)
+	st.Lock()
+	defer st.Unlock()
+	return st.updateDelta(name, 0)
 }
 
 func (st *MetricStorage) tableCreate() error {
