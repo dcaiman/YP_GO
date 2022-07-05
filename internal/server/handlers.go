@@ -224,6 +224,11 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	if err := mRes.UpdateHash(srv.Cfg.HashKey); err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	mResJSON, err := mRes.GetJSON()
 	if err != nil {
