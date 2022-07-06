@@ -105,6 +105,7 @@ func (st *MetricStorage) updateMetricFromJSON(content []byte) error {
 func (st *MetricStorage) UpdateMetricFromStruct(m metric.Metric) error {
 	st.Lock()
 	defer st.Unlock()
+
 	st.updateMetricFromStruct(m)
 	return nil
 }
@@ -114,12 +115,31 @@ func (st *MetricStorage) updateMetricFromStruct(m metric.Metric) {
 }
 
 func (st *MetricStorage) UpdateBatch(r io.Reader) error {
+	st.Lock()
+	defer st.Unlock()
+
+	b := bufio.NewScanner(r)
+	for b.Scan() {
+		m := metric.Metric{}
+		m.SetFromJSON(b.Bytes())
+		exists, err := st.metricExists(m.ID)
+		if err != nil {
+			return err
+		}
+		if exists && m.Delta != nil {
+			tmp := *m.Delta
+			tmp += *st.Metrics[m.ID].Delta
+			m.Delta = &tmp
+		}
+		st.updateMetricFromStruct(m)
+	}
 	return nil
 }
 
 func (st *MetricStorage) UpdateValue(name string, val float64) error {
 	st.Lock()
 	defer st.Unlock()
+
 	return st.updateValue(name, val)
 }
 
