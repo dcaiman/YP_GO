@@ -50,6 +50,16 @@ func (srv *ServerConfig) handlerUpdateBatch(w http.ResponseWriter, r *http.Reque
 	}
 }
 
+func (srv *ServerConfig) handlerUpdateStruct(w http.ResponseWriter, r *http.Request) {
+	content, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	fmt.Println(string(content))
+}
+
 func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
 	content, err := io.ReadAll(r.Body)
 	if err != nil {

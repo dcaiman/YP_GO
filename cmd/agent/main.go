@@ -16,7 +16,7 @@ func main() {
 			HashKey:        "key",
 			ArgConfig:      true,
 			EnvConfig:      true,
-			SentBatch:      true,
+			SendBatch:      true,
 		},
 	}
 	agent.RunAgent(&agn)

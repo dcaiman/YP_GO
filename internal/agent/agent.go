@@ -1,18 +1,10 @@
 package agent
 
 import (
-	"bytes"
-	"errors"
 	"flag"
-	"io"
 	"log"
-	"math/rand"
-	"net/http"
 	"os"
 	"os/signal"
-	"reflect"
-	"runtime"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -78,7 +70,7 @@ type EnvConfig struct {
 
 	EnvConfig bool
 	ArgConfig bool
-	SentBatch bool
+	SendBatch bool
 }
 
 type AgentConfig struct {
@@ -117,182 +109,10 @@ func RunAgent(agn *AgentConfig) {
 		case <-pollTimer.C:
 			agn.poll()
 		case <-reportTimer.C:
-			agn.report(agn.Cfg.SentBatch)
+			agn.report(agn.Cfg.SendBatch)
 		case <-signalCh:
 			log.Println("EXIT")
 			os.Exit(0)
 		}
 	}
-}
-
-func (agn *AgentConfig) prepareStorage() {
-	for i := range runtimeGauges {
-		m := metric.Metric{
-			ID:    runtimeGauges[i],
-			MType: Gauge,
-		}
-		m.UpdateHash(agn.Cfg.HashKey)
-		agn.Storage.NewMetric(m)
-	}
-	for i := range customGauges {
-		m := metric.Metric{
-			ID:    customGauges[i],
-			MType: Gauge,
-		}
-		m.UpdateHash(agn.Cfg.HashKey)
-		agn.Storage.NewMetric(m)
-	}
-	for i := range counters {
-		m := metric.Metric{
-			ID:    counters[i],
-			MType: Counter,
-		}
-		m.UpdateHash(agn.Cfg.HashKey)
-		agn.Storage.NewMetric(m)
-	}
-}
-
-func (agn *AgentConfig) poll() {
-	for i := range runtimeGauges {
-		if err := agn.Storage.UpdateValue(runtimeGauges[i], getRuntimeMetric(runtimeGauges[i])); err != nil {
-			log.Println(err.Error())
-		}
-	}
-	for i := range customGauges {
-		if err := agn.Storage.UpdateValue(customGauges[i], 100*rand.Float64()); err != nil {
-			log.Println(err.Error())
-		}
-	}
-	for i := range counters {
-		if err := agn.Storage.IncreaseDelta(counters[i]); err != nil {
-			log.Println(err.Error())
-		}
-	}
-}
-
-func (agn *AgentConfig) report(sendBatch bool) {
-	if sendBatch {
-		if err := agn.sendBatch(); err != nil {
-			return
-		}
-		return
-	}
-	for i := range runtimeGauges {
-		go agn.sendMetric(runtimeGauges[i])
-	}
-	for i := range customGauges {
-		go agn.sendMetric(customGauges[i])
-	}
-	for i := range counters {
-		go agn.sendMetric(counters[i])
-	}
-
-}
-
-func getRuntimeMetric(name string) float64 {
-	mem := &runtime.MemStats{}
-	runtime.ReadMemStats(mem)
-	return reflect.Indirect(reflect.ValueOf(mem)).FieldByName(name).Convert(reflect.TypeOf(0.0)).Float()
-}
-
-func (agn *AgentConfig) sendMetric(name string) error {
-	var url, val string
-	var body []byte
-
-	m, err := agn.Storage.GetMetric(name)
-	if err != nil {
-		log.Println(err.Error())
-		return err
-	}
-
-	switch agn.Cfg.CType {
-	case TextPlainCT:
-		switch m.MType {
-		case Gauge:
-			val = strconv.FormatFloat(*m.Value, 'f', 3, 64)
-		case Counter:
-			val = strconv.FormatInt(*m.Delta, 10)
-		default:
-			err := errors.New("cannot send: unsupported metric type <" + m.MType + ">")
-			log.Println(err)
-			return err
-		}
-		url = agn.Cfg.SrvAddr + "/update/" + m.MType + "/" + m.ID + "/" + val
-		body = nil
-	case JSONCT:
-		tmpBody, err := m.GetJSON()
-		if err != nil {
-			log.Println(err.Error())
-			return err
-		}
-		url = agn.Cfg.SrvAddr + "/update/"
-		body = tmpBody
-	default:
-		err := errors.New("cannot send: unsupported content type <" + agn.Cfg.CType + ">")
-		log.Println(err)
-		return err
-	}
-	res, err := customPostRequest(HTTPStr+url, agn.Cfg.CType, m.Hash, bytes.NewBuffer(body))
-	if err != nil {
-		log.Println(err.Error())
-		return err
-	}
-	defer res.Body.Close()
-	if m.MType == Counter {
-		agn.Storage.ResetDelta(name)
-	}
-	log.Println(res.Status, res.Request.URL)
-	return nil
-}
-
-func (agn *AgentConfig) sendBatch() error {
-	body, err := agn.getStorageBatch(true)
-	if err != nil {
-		return err
-	}
-	res, err := customPostRequest(HTTPStr+agn.Cfg.SrvAddr+"/updates/", JSONCT, "", bytes.NewBuffer(body))
-	if err != nil {
-		log.Println(err.Error())
-		return err
-	}
-	defer res.Body.Close()
-	log.Println("SEND BATCH: ", res.Status, res.Request.URL)
-	return nil
-}
-
-func (agn *AgentConfig) getStorageBatch(resetCounters bool) ([]byte, error) {
-	allMetrics, err := agn.Storage.GetAllMetrics()
-	if err != nil {
-		return nil, err
-	}
-
-	var mj []byte
-	for i := range allMetrics {
-		tmp, err := allMetrics[i].GetJSON()
-		if err != nil {
-			return nil, err
-		}
-		mj = append(mj, tmp...)
-		mj = append(mj, []byte("\n")...)
-		if resetCounters && allMetrics[i].MType == Counter {
-			if err := agn.Storage.ResetDelta(allMetrics[i].ID); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return mj, nil
-}
-
-func customPostRequest(url, contentType, hash string, body io.Reader) (resp *http.Response, err error) {
-	req, err := http.NewRequest("POST", url, body)
-	if err != nil {
-		return nil, err
-	}
-	if hash != "" {
-		req.Header.Set("Hash", hash)
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	return http.DefaultClient.Do(req)
 }

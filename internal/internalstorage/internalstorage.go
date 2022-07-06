@@ -31,6 +31,7 @@ func New(filePath, hashKey string) *MetricStorage {
 func (st *MetricStorage) NewMetric(m metric.Metric) error {
 	st.Lock()
 	defer st.Unlock()
+
 	return st.newMetric(m)
 }
 
@@ -50,6 +51,7 @@ func (st *MetricStorage) newMetric(m metric.Metric) error {
 func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
 	st.Lock()
 	defer st.Unlock()
+
 	if m, ok := st.Metrics[name]; ok {
 		return m, nil
 	}
@@ -68,6 +70,7 @@ func (st *MetricStorage) GetAllMetrics() ([]metric.Metric, error) {
 func (st *MetricStorage) MetricExists(name string) (bool, error) {
 	st.Lock()
 	defer st.Unlock()
+
 	return st.metricExists(name)
 }
 
@@ -89,6 +92,7 @@ func (st *MetricStorage) AccessCheck(ctx context.Context) error {
 func (st *MetricStorage) UpdateMetricFromJSON(content []byte) error {
 	st.Lock()
 	defer st.Unlock()
+
 	return st.updateMetricFromJSON(content)
 }
 
@@ -159,6 +163,7 @@ func (st *MetricStorage) updateValue(name string, val float64) error {
 func (st *MetricStorage) UpdateDelta(name string, del int64) error {
 	st.Lock()
 	defer st.Unlock()
+
 	return st.updateDelta(name, del)
 }
 
@@ -178,6 +183,7 @@ func (st *MetricStorage) updateDelta(name string, del int64) error {
 func (st *MetricStorage) AddDelta(name string, del int64) error {
 	st.Lock()
 	defer st.Unlock()
+
 	currentDel := st.Metrics[name].Delta
 	if currentDel == nil {
 		return st.updateDelta(name, del)
@@ -192,12 +198,14 @@ func (st *MetricStorage) IncreaseDelta(name string) error {
 func (st *MetricStorage) ResetDelta(name string) error {
 	st.Lock()
 	defer st.Unlock()
+
 	return st.updateDelta(name, 0)
 }
 
 func (st *MetricStorage) DownloadStorage() error {
 	st.Lock()
 	defer st.Unlock()
+
 	file, err := os.Open(st.FilePath)
 	if err != nil {
 		return err
@@ -214,6 +222,7 @@ func (st *MetricStorage) DownloadStorage() error {
 func (st *MetricStorage) UploadStorage() error {
 	st.Lock()
 	defer st.Unlock()
+
 	file, err := os.OpenFile(st.FilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
 	if err != nil {
 		return err
