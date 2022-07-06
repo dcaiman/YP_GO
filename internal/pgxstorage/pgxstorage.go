@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"sync"
 
 	"github.com/dcaiman/YP_GO/internal/custom"
@@ -265,6 +264,12 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 	}
 	defer tx.Rollback()
 
+	txStGet, err := tx.Prepare(stGetMetric)
+	if err != nil {
+		return err
+	}
+	defer txStGet.Close()
+
 	txStUpdate, err := tx.Prepare(stUpdate)
 	if err != nil {
 		return err
@@ -291,6 +296,7 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 		m.SetFromJSON(s.Bytes())
 		fmt.Println("AFTER PARSING: ", m)
 
+		//EXIST BEGIN
 		exists := false
 		rows, err := txStExist.Query(m.ID)
 		if err != nil {
@@ -305,15 +311,30 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 			return err
 		}
 		rows.Close()
+		//EXIST END
 
 		fmt.Println("EXISTING: ", exists)
 		if exists {
 			if m.Delta != nil {
 				tmp := *m.Delta
-				mTmp, err := st.getMetric(m.ID)
+
+				//GET BEGIN
+				rows, err := txStGet.Query(m.ID)
 				if err != nil {
-					log.Println(err)
+					return err
 				}
+				mTmp := metric.Metric{}
+				for rows.Next() {
+					if err := rows.Scan(&mTmp.ID, &mTmp.MType, &mTmp.Value, &mTmp.Delta, &mTmp.Hash); err != nil {
+						return err
+					}
+				}
+				if err := rows.Err(); err != nil {
+					return err
+				}
+				rows.Close()
+				//GET END
+
 				tmp += *mTmp.Delta
 				m.Delta = &tmp
 			}
