@@ -64,7 +64,7 @@ func (agn *AgentConfig) sendBatch() error {
 	if err != nil {
 		return err
 	}
-	res, err := customPostRequest(HTTPStr+agn.Cfg.SrvAddr+"/updates/batch", JSONCT, "", bytes.NewBuffer(body))
+	res, err := customPostRequest(HTTPStr+agn.Cfg.SrvAddr+"/updates/", JSONCT, "", bytes.NewBuffer(body))
 	if err != nil {
 		log.Println(err.Error())
 		return err
