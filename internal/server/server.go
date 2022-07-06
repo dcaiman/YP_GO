@@ -100,8 +100,7 @@ func RunServer(srv *ServerConfig) {
 		r.Post("/{type}/{name}/{val}", Compresser(srv.handlerUpdateDirect))
 	})
 	mainRouter.Route("/updates", func(r chi.Router) {
-		r.Post("/", Compresser(srv.handlerUpdateStruct))
-		r.Post("/batch", Compresser(srv.handlerUpdateBatch))
+		r.Post("/", Compresser(srv.handlerUpdateBatch))
 	})
 	mainRouter.Route("/ping", func(r chi.Router) {
 		r.Get("/", Compresser(srv.handlerCheckDBConnection))
