@@ -93,7 +93,7 @@ func (agn *AgentConfig) getStorageBatch(resetCounters bool) ([]byte, error) {
 			return nil, err
 		}
 		mj = append(mj, tmp...)
-		mj = append(mj, []byte("\n")...)
+		mj = append(mj, []byte(",")...)
 		if resetCounters && allMetrics[i].MType == Counter {
 			if err := agn.Storage.ResetDelta(allMetrics[i].ID); err != nil {
 				return nil, err

@@ -5,8 +5,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"io"
+	"strings"
 	"sync"
 
 	"github.com/dcaiman/YP_GO/internal/metric"
@@ -275,11 +275,11 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 	}
 	defer txStInsert.Close()
 
-	b := bufio.NewScanner(r)
-	for b.Scan() {
-		fmt.Println(b.Text())
+	s := bufio.NewScanner(r)
+	s.Split(customSplit())
+	for s.Scan() {
 		m := metric.Metric{}
-		m.SetFromJSON(b.Bytes())
+		m.SetFromJSON(s.Bytes())
 		exists, err := st.metricExists(m.ID)
 		if err != nil {
 			return err
@@ -421,4 +421,18 @@ func (st *MetricStorage) tableDrop() error {
 		return err
 	}
 	return nil
+}
+
+func customSplit() func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	substring := "}"
+	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		if i := strings.Index(string(data), substring); i >= 0 {
+			return i + 2, data[0 : i+1], nil
+		}
+
+		if !atEOF {
+			return 0, nil, nil
+		}
+		return len(data), data, bufio.ErrFinalToken
+	}
 }
