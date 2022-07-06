@@ -28,6 +28,7 @@ type EnvConfig struct {
 
 	EnvConfig bool
 	ArgConfig bool
+	DropDB    bool
 }
 
 type ServerConfig struct {
@@ -52,7 +53,7 @@ func RunServer(srv *ServerConfig) {
 	}
 
 	if srv.Cfg.DBAddr != "" {
-		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey, false)
+		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey, srv.Cfg.DropDB)
 		if err != nil {
 			log.Println(err)
 			return

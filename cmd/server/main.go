@@ -18,6 +18,7 @@ func main() {
 
 			ArgConfig: true,
 			EnvConfig: true,
+			DropDB:    false,
 		},
 	}
 	server.RunServer(&srv)

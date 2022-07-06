@@ -43,8 +43,6 @@ func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http
 }
 
 func (srv *ServerConfig) handlerUpdateBatch(w http.ResponseWriter, r *http.Request) {
-	content, _ := io.ReadAll(r.Body)
-	fmt.Println(string(content))
 	if err := srv.Storage.UpdateBatch(r.Body); err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
