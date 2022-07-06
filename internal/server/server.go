@@ -52,7 +52,7 @@ func RunServer(srv *ServerConfig) {
 	}
 
 	if srv.Cfg.DBAddr != "" {
-		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey, true)
+		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey, false)
 		if err != nil {
 			log.Println(err)
 			return
