@@ -13,7 +13,7 @@ func CustomSplit() func(data []byte, atEOF bool) (advance int, token []byte, err
 			return end + 2, data[begin : end+1], nil
 		}
 
-		if !atEOF {
+		if !atEOF || string(data) == "" {
 			return 0, nil, nil
 		}
 		return len(data), data, bufio.ErrFinalToken

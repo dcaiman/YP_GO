@@ -276,6 +276,12 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 	}
 	defer txStInsert.Close()
 
+	txStExist, err := tx.Prepare(stMetricExists)
+	if err != nil {
+		return err
+	}
+	defer txStExist.Close()
+
 	s := bufio.NewScanner(r)
 	s.Split(custom.CustomSplit())
 	for s.Scan() {
@@ -283,10 +289,23 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 		m := metric.Metric{}
 		m.SetFromJSON(s.Bytes())
 		fmt.Println("AFTER PARSING: ", m)
-		exists, err := st.metricExists(m.ID)
+
+		exists := false
+		rows, err := txStExist.Query(m.ID)
 		if err != nil {
 			return err
 		}
+		defer rows.Close()
+		for rows.Next() {
+			if err := rows.Scan(&exists); err != nil {
+				return err
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return err
+
+		}
+
 		fmt.Println("EXISTING: ", exists)
 		if exists {
 			if m.Delta != nil {
@@ -302,6 +321,7 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 			if _, err := txStUpdate.Exec(m.ID, m.MType, m.Value, m.Delta, m.Hash); err != nil {
 				return err
 			}
+			fmt.Println("UPDATED")
 		} else if _, err := txStInsert.Exec(m.ID, m.MType, m.Value, m.Delta, m.Hash); err != nil {
 			return err
 		}
