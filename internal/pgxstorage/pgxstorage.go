@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"sync"
 
 	"github.com/dcaiman/YP_GO/internal/custom"
@@ -295,7 +296,6 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 		if err != nil {
 			return err
 		}
-		defer rows.Close()
 		for rows.Next() {
 			if err := rows.Scan(&exists); err != nil {
 				return err
@@ -303,8 +303,8 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 		}
 		if err := rows.Err(); err != nil {
 			return err
-
 		}
+		rows.Close()
 
 		fmt.Println("EXISTING: ", exists)
 		if exists {
@@ -312,7 +312,7 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 				tmp := *m.Delta
 				mTmp, err := st.getMetric(m.ID)
 				if err != nil {
-					return err
+					log.Println(err)
 				}
 				tmp += *mTmp.Delta
 				m.Delta = &tmp
@@ -327,6 +327,7 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 		}
 		fmt.Println("NEXT")
 	}
+	fmt.Println("END")
 	return tx.Commit()
 }
 
