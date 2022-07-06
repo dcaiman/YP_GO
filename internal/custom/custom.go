@@ -6,10 +6,11 @@ import (
 )
 
 func CustomSplit() func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	substring := "}"
 	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		if i := strings.Index(string(data), substring); i >= 0 {
-			return i + 2, data[0 : i+1], nil
+		begin := strings.Index(string(data), "{")
+		end := strings.Index(string(data), "}")
+		if begin >= 0 && end >= 0 {
+			return end + 2, data[begin : end+1], nil
 		}
 
 		if !atEOF {
