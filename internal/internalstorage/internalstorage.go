@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/dcaiman/YP_GO/internal/custom"
 	"github.com/dcaiman/YP_GO/internal/metric"
 )
 
@@ -122,10 +123,11 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 	st.Lock()
 	defer st.Unlock()
 
-	b := bufio.NewScanner(r)
-	for b.Scan() {
+	s := bufio.NewScanner(r)
+	s.Split(custom.CustomSplit())
+	for s.Scan() {
 		m := metric.Metric{}
-		m.SetFromJSON(b.Bytes())
+		m.SetFromJSON(s.Bytes())
 		exists, err := st.metricExists(m.ID)
 		if err != nil {
 			return err
