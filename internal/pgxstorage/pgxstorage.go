@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 
@@ -276,6 +277,7 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 
 	b := bufio.NewScanner(r)
 	for b.Scan() {
+		fmt.Println(b.Text())
 		m := metric.Metric{}
 		m.SetFromJSON(b.Bytes())
 		exists, err := st.metricExists(m.ID)
