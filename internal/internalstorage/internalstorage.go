@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"io"
 	"log"
 	"os"
 	"sync"
@@ -110,6 +111,10 @@ func (st *MetricStorage) UpdateMetricFromStruct(m metric.Metric) error {
 
 func (st *MetricStorage) updateMetricFromStruct(m metric.Metric) {
 	st.Metrics[m.ID] = m
+}
+
+func (st *MetricStorage) UpdateBatch(r io.Reader) error {
+	return nil
 }
 
 func (st *MetricStorage) UpdateValue(name string, val float64) error {

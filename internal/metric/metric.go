@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 )
 
 const Schema = `
@@ -26,6 +27,7 @@ type MStorage interface {
 	MetricExists(name string) (bool, error)
 	AccessCheck(ctx context.Context) error
 
+	UpdateBatch(r io.Reader) error
 	UpdateMetricFromJSON(content []byte) error
 	UpdateMetricFromStruct(m Metric) error
 

@@ -78,6 +78,7 @@ type EnvConfig struct {
 
 	EnvConfig bool
 	ArgConfig bool
+	SentBatch bool
 }
 
 type AgentConfig struct {
@@ -109,14 +110,14 @@ func RunAgent(agn *AgentConfig) {
 	pollTimer := time.NewTicker(agn.Cfg.PollInterval)
 	reportTimer := time.NewTicker(agn.Cfg.ReportInterval)
 
-	prepareStorage(agn)
+	agn.prepareStorage()
 
 	for {
 		select {
 		case <-pollTimer.C:
-			poll(agn)
+			agn.poll()
 		case <-reportTimer.C:
-			report(agn)
+			agn.report(agn.Cfg.SentBatch)
 		case <-signalCh:
 			log.Println("EXIT")
 			os.Exit(0)
@@ -124,7 +125,7 @@ func RunAgent(agn *AgentConfig) {
 	}
 }
 
-func prepareStorage(agn *AgentConfig) {
+func (agn *AgentConfig) prepareStorage() {
 	for i := range runtimeGauges {
 		m := metric.Metric{
 			ID:    runtimeGauges[i],
@@ -151,7 +152,7 @@ func prepareStorage(agn *AgentConfig) {
 	}
 }
 
-func poll(agn *AgentConfig) {
+func (agn *AgentConfig) poll() {
 	for i := range runtimeGauges {
 		if err := agn.Storage.UpdateValue(runtimeGauges[i], getRuntimeMetric(runtimeGauges[i])); err != nil {
 			log.Println(err.Error())
@@ -169,16 +170,23 @@ func poll(agn *AgentConfig) {
 	}
 }
 
-func report(agn *AgentConfig) {
+func (agn *AgentConfig) report(sendBatch bool) {
+	if sendBatch {
+		if err := agn.sendBatch(); err != nil {
+			return
+		}
+		return
+	}
 	for i := range runtimeGauges {
-		go sendMetric(runtimeGauges[i], agn)
+		go agn.sendMetric(runtimeGauges[i])
 	}
 	for i := range customGauges {
-		go sendMetric(customGauges[i], agn)
+		go agn.sendMetric(customGauges[i])
 	}
 	for i := range counters {
-		go sendMetric(counters[i], agn)
+		go agn.sendMetric(counters[i])
 	}
+
 }
 
 func getRuntimeMetric(name string) float64 {
@@ -187,7 +195,7 @@ func getRuntimeMetric(name string) float64 {
 	return reflect.Indirect(reflect.ValueOf(mem)).FieldByName(name).Convert(reflect.TypeOf(0.0)).Float()
 }
 
-func sendMetric(name string, agn *AgentConfig) error {
+func (agn *AgentConfig) sendMetric(name string) error {
 	var url, val string
 	var body []byte
 
@@ -237,6 +245,44 @@ func sendMetric(name string, agn *AgentConfig) error {
 	return nil
 }
 
+func (agn *AgentConfig) sendBatch() error {
+	body, err := agn.getStorageBatch(true)
+	if err != nil {
+		return err
+	}
+	res, err := customPostRequest(HTTPStr+agn.Cfg.SrvAddr+"/updates/", JSONCT, "", bytes.NewBuffer(body))
+	if err != nil {
+		log.Println(err.Error())
+		return err
+	}
+	defer res.Body.Close()
+	log.Println("SEND BATCH: ", res.Status, res.Request.URL)
+	return nil
+}
+
+func (agn *AgentConfig) getStorageBatch(resetCounters bool) ([]byte, error) {
+	allMetrics, err := agn.Storage.GetAllMetrics()
+	if err != nil {
+		return nil, err
+	}
+
+	var mj []byte
+	for i := range allMetrics {
+		tmp, err := allMetrics[i].GetJSON()
+		if err != nil {
+			return nil, err
+		}
+		mj = append(mj, tmp...)
+		mj = append(mj, []byte("\n")...)
+		if resetCounters && allMetrics[i].MType == Counter {
+			if err := agn.Storage.ResetDelta(allMetrics[i].ID); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return mj, nil
+}
+
 func customPostRequest(url, contentType, hash string, body io.Reader) (resp *http.Response, err error) {
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
@@ -250,17 +296,3 @@ func customPostRequest(url, contentType, hash string, body io.Reader) (resp *htt
 	}
 	return http.DefaultClient.Do(req)
 }
-
-/*
-func getBatch(metricNames []string, agn *AgentConfig) ([]metric.Metric, error) {
-	batch := []metric.Metric{}
-	for i := range metricNames {
-		m, err := agn.Storage.GetMetric(metricNames[i])
-		if err != nil {
-			return nil, err
-		}
-		batch = append(batch, m)
-	}
-	return batch, nil
-}
-*/
