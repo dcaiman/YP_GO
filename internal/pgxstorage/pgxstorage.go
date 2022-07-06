@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 
@@ -278,12 +279,15 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 	s := bufio.NewScanner(r)
 	s.Split(custom.CustomSplit())
 	for s.Scan() {
+		fmt.Println("TEXT: ", s.Text())
 		m := metric.Metric{}
 		m.SetFromJSON(s.Bytes())
+		fmt.Println("AFTER PARSING: ", m)
 		exists, err := st.metricExists(m.ID)
 		if err != nil {
 			return err
 		}
+		fmt.Println("EXISTING: ", exists)
 		if exists {
 			if m.Delta != nil {
 				tmp := *m.Delta
@@ -294,12 +298,14 @@ func (st *MetricStorage) UpdateBatch(r io.Reader) error {
 				tmp += *mTmp.Delta
 				m.Delta = &tmp
 			}
+			fmt.Println("UPDATE: ", m)
 			if _, err := txStUpdate.Exec(m.ID, m.MType, m.Value, m.Delta, m.Hash); err != nil {
 				return err
 			}
 		} else if _, err := txStInsert.Exec(m.ID, m.MType, m.Value, m.Delta, m.Hash); err != nil {
 			return err
 		}
+		fmt.Println("NEXT")
 	}
 	return tx.Commit()
 }
