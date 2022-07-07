@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dcaiman/YP_GO/internal/clog"
 	"github.com/dcaiman/YP_GO/internal/internalstorage"
 	"github.com/dcaiman/YP_GO/internal/metric"
 
@@ -102,14 +103,20 @@ func RunAgent(agn *AgentConfig) {
 	pollTimer := time.NewTicker(agn.Cfg.PollInterval)
 	reportTimer := time.NewTicker(agn.Cfg.ReportInterval)
 
-	agn.prepareStorage()
+	if err := agn.prepareStorage(); err != nil {
+		log.Println(clog.ToLog(clog.FuncName(), err))
+	}
 
 	for {
 		select {
 		case <-pollTimer.C:
-			agn.poll()
+			if err := agn.poll(); err != nil {
+				log.Println(clog.ToLog(clog.FuncName(), err))
+			}
 		case <-reportTimer.C:
-			agn.report(agn.Cfg.SendBatch)
+			if err := agn.report(agn.Cfg.SendBatch); err != nil {
+				log.Println(clog.ToLog(clog.FuncName(), err))
+			}
 		case <-signalCh:
 			log.Println("EXIT")
 			os.Exit(0)

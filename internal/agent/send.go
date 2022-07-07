@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+
+	"github.com/dcaiman/YP_GO/internal/clog"
 )
 
 func (agn *AgentConfig) sendMetric(name string) error {
@@ -15,8 +17,7 @@ func (agn *AgentConfig) sendMetric(name string) error {
 
 	m, err := agn.Storage.GetMetric(name)
 	if err != nil {
-		log.Println(err.Error())
-		return err
+		return clog.ToLog(clog.FuncName(), err)
 	}
 
 	switch agn.Cfg.CType {
@@ -27,47 +28,42 @@ func (agn *AgentConfig) sendMetric(name string) error {
 		case Counter:
 			val = strconv.FormatInt(*m.Delta, 10)
 		default:
-			err := errors.New("cannot send: unsupported metric type <" + m.MType + ">")
-			log.Println(err)
-			return err
+			return clog.ToLog(clog.FuncName(), errors.New("cannot send: unsupported metric type <"+m.MType+">"))
 		}
 		url = agn.Cfg.SrvAddr + "/update/" + m.MType + "/" + m.ID + "/" + val
 		body = nil
 	case JSONCT:
 		tmpBody, err := m.GetJSON()
 		if err != nil {
-			log.Println(err.Error())
-			return err
+			return clog.ToLog(clog.FuncName(), err)
 		}
 		url = agn.Cfg.SrvAddr + "/update/"
 		body = tmpBody
 	default:
-		err := errors.New("cannot send: unsupported content type <" + agn.Cfg.CType + ">")
-		log.Println(err)
-		return err
+		return clog.ToLog(clog.FuncName(), errors.New("cannot send: unsupported content type <"+agn.Cfg.CType+">"))
 	}
 	res, err := customPostRequest(HTTPStr+url, agn.Cfg.CType, m.Hash, bytes.NewBuffer(body))
 	if err != nil {
-		log.Println(err.Error())
-		return err
+		return clog.ToLog(clog.FuncName(), err)
 	}
 	defer res.Body.Close()
 	if m.MType == Counter {
-		agn.Storage.ResetDelta(name)
+		if err := agn.Storage.ResetDelta(name); err != nil {
+			return clog.ToLog(clog.FuncName(), err)
+		}
 	}
-	log.Println(res.Status, res.Request.URL)
+	log.Println("SEND METRIC: ", res.Status, res.Request.URL)
 	return nil
 }
 
 func (agn *AgentConfig) sendBatch() error {
 	body, err := agn.getStorageBatch(true)
 	if err != nil {
-		return err
+		return clog.ToLog(clog.FuncName(), err)
 	}
 	res, err := customPostRequest(HTTPStr+agn.Cfg.SrvAddr+"/updates/", JSONCT, "", bytes.NewBuffer(body))
 	if err != nil {
-		log.Println(err.Error())
-		return err
+		return clog.ToLog(clog.FuncName(), err)
 	}
 	defer res.Body.Close()
 	log.Println("SEND BATCH: ", res.Status, res.Request.URL)
@@ -77,7 +73,7 @@ func (agn *AgentConfig) sendBatch() error {
 func customPostRequest(url, contentType, hash string, body io.Reader) (resp *http.Response, err error) {
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
-		return nil, err
+		return nil, clog.ToLog(clog.FuncName(), err)
 	}
 	if hash != "" {
 		req.Header.Set("Hash", hash)
@@ -85,5 +81,9 @@ func customPostRequest(url, contentType, hash string, body io.Reader) (resp *htt
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
-	return http.DefaultClient.Do(req)
+	client, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, clog.ToLog(clog.FuncName(), err)
+	}
+	return client, nil
 }

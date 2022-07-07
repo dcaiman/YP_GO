@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"text/template"
 
+	"github.com/dcaiman/YP_GO/internal/clog"
 	"github.com/dcaiman/YP_GO/internal/metric"
 	"github.com/go-chi/chi/v5"
 )
@@ -32,11 +33,15 @@ const (
 
 func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http.Request) {
 	if err := srv.Storage.AccessCheck(r.Context()); err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
+		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	_, err := w.Write([]byte("STORAGE IS AVAILABLE"))
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
+		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -44,6 +49,7 @@ func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http
 
 func (srv *ServerConfig) handlerUpdateBatch(w http.ResponseWriter, r *http.Request) {
 	if err := srv.Storage.UpdateBatch(r.Body); err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -53,6 +59,7 @@ func (srv *ServerConfig) handlerUpdateBatch(w http.ResponseWriter, r *http.Reque
 func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
 	content, err := io.ReadAll(r.Body)
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -60,6 +67,7 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 
 	m := metric.Metric{}
 	if err := m.SetFromJSON(content); err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		return
 	}
@@ -68,6 +76,7 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 		resHash, err := srv.checkHash(m)
 		w.Header().Set("Hash", resHash)
 		if err != nil {
+			err := clog.ToLog(clog.FuncName(), err)
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -75,6 +84,7 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := checkTypeSupport(m.MType); err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotImplemented)
 		return
@@ -82,6 +92,7 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 
 	exists, err := srv.Storage.MetricExists(m.ID)
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -95,12 +106,14 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 			err = srv.Storage.AddDelta(m.ID, *m.Delta)
 		}
 		if err != nil {
+			err := clog.ToLog(clog.FuncName(), err)
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	} else {
 		if err := srv.Storage.UpdateMetricFromStruct(m); err != nil {
+			err := clog.ToLog(clog.FuncName(), err)
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -116,6 +129,7 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 	mType := chi.URLParam(r, "type")
 	err := checkTypeSupport(mType)
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotImplemented)
 		return
@@ -131,6 +145,7 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 		mDelta, err = strconv.ParseInt(mVal, 10, 64)
 	}
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -139,6 +154,7 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 	mName := chi.URLParam(r, "name")
 	exists, err := srv.Storage.MetricExists(mName)
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -152,6 +168,7 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 			err = srv.Storage.AddDelta(mName, mDelta)
 		}
 		if err != nil {
+			err := clog.ToLog(clog.FuncName(), err)
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -164,11 +181,13 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 			Delta: &mDelta,
 		}
 		if err := m.UpdateHash(srv.Cfg.HashKey); err != nil {
+			err := clog.ToLog(clog.FuncName(), err)
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		if err = srv.Storage.NewMetric(m); err != nil {
+			err := clog.ToLog(clog.FuncName(), err)
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -184,12 +203,14 @@ func (srv *ServerConfig) handlerGetAll(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	t, err := template.New("").Parse(templateHandlerGetAll)
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	allMetrics, err := srv.Storage.GetAllMetrics()
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -200,6 +221,7 @@ func (srv *ServerConfig) handlerGetAll(w http.ResponseWriter, r *http.Request) {
 func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Request) {
 	content, err := io.ReadAll(r.Body)
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -207,12 +229,14 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 
 	mReq := metric.Metric{}
 	if err := mReq.SetFromJSON(content); err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if err := checkTypeSupport(mReq.MType); err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotImplemented)
 		return
@@ -220,6 +244,7 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 
 	mRes, err := srv.Storage.GetMetric(mReq.ID)
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -230,6 +255,7 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := mRes.UpdateHash(srv.Cfg.HashKey); err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -237,6 +263,7 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 
 	mResJSON, err := mRes.GetJSON()
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -248,6 +275,7 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 func (srv *ServerConfig) handlerGetMetric(w http.ResponseWriter, r *http.Request) {
 	mType := chi.URLParam(r, "type")
 	if err := checkTypeSupport(mType); err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotImplemented)
 		return
@@ -256,6 +284,7 @@ func (srv *ServerConfig) handlerGetMetric(w http.ResponseWriter, r *http.Request
 	mName := chi.URLParam(r, "name")
 	m, err := srv.Storage.GetMetric(mName)
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -272,6 +301,7 @@ func (srv *ServerConfig) handlerGetMetric(w http.ResponseWriter, r *http.Request
 		_, err = w.Write([]byte(strconv.FormatInt(*m.Delta, 10)))
 	}
 	if err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -284,16 +314,14 @@ func checkTypeSupport(mType string) error {
 			return nil
 		}
 	}
-	err := errors.New("unsupported type <" + mType + ">")
-	return err
+	return clog.ToLog(clog.FuncName(), errors.New("unsupported type <"+mType+">"))
 }
 
 func (srv *ServerConfig) checkHash(m metric.Metric) (string, error) {
 	h := m.Hash
 	m.UpdateHash(srv.Cfg.HashKey)
 	if h != m.Hash {
-		err := errors.New("inconsistent hashes")
-		return m.Hash, err
+		return m.Hash, clog.ToLog(clog.FuncName(), errors.New("inconsistent hashes"))
 	}
 	return m.Hash, nil
 }

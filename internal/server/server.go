@@ -8,6 +8,7 @@ import (
 
 	_ "github.com/jackc/pgx/v4/stdlib"
 
+	"github.com/dcaiman/YP_GO/internal/clog"
 	"github.com/dcaiman/YP_GO/internal/internalstorage"
 	"github.com/dcaiman/YP_GO/internal/metric"
 	"github.com/dcaiman/YP_GO/internal/pgxstorage"
@@ -48,15 +49,14 @@ func RunServer(srv *ServerConfig) {
 	}
 	if srv.Cfg.EnvConfig {
 		if err := env.Parse(&srv.Cfg); err != nil {
-			log.Println(err.Error())
+			log.Println(clog.ToLog(clog.FuncName(), err))
 		}
 	}
 
 	if srv.Cfg.DBAddr != "" {
 		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey, srv.Cfg.DropDB)
 		if err != nil {
-			log.Println(err)
-			return
+			log.Println(clog.ToLog(clog.FuncName(), err))
 		}
 		defer dbStorage.Close()
 		srv.Storage = dbStorage
@@ -67,7 +67,7 @@ func RunServer(srv *ServerConfig) {
 		if srv.Cfg.InitDownload {
 			err := srv.Storage.DownloadStorage()
 			if err != nil {
-				log.Println(err.Error())
+				log.Println(clog.ToLog(clog.FuncName(), err))
 			}
 		}
 		if srv.Cfg.StoreInterval != 0 {
@@ -77,7 +77,7 @@ func RunServer(srv *ServerConfig) {
 					<-uploadTimer.C
 					err := srv.Storage.UploadStorage()
 					if err != nil {
-						log.Println(err.Error())
+						log.Println(clog.ToLog(clog.FuncName(), err))
 					}
 				}
 			}()

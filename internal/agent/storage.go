@@ -6,72 +6,87 @@ import (
 	"reflect"
 	"runtime"
 
+	"github.com/dcaiman/YP_GO/internal/clog"
 	"github.com/dcaiman/YP_GO/internal/metric"
 )
 
-func (agn *AgentConfig) prepareStorage() {
-	for i := range runtimeGauges {
-		m := metric.Metric{
-			ID:    runtimeGauges[i],
-			MType: Gauge,
-		}
-		m.UpdateHash(agn.Cfg.HashKey)
-		agn.Storage.NewMetric(m)
+func (agn *AgentConfig) prepareStorage() error {
+	if err := agn.createMetrics(runtimeGauges[:], Gauge); err != nil {
+		return clog.ToLog(clog.FuncName(), err)
 	}
-	for i := range customGauges {
-		m := metric.Metric{
-			ID:    customGauges[i],
-			MType: Gauge,
-		}
-		m.UpdateHash(agn.Cfg.HashKey)
-		agn.Storage.NewMetric(m)
+	if err := agn.createMetrics(customGauges[:], Gauge); err != nil {
+		return clog.ToLog(clog.FuncName(), err)
 	}
-	for i := range counters {
-		m := metric.Metric{
-			ID:    counters[i],
-			MType: Counter,
-		}
-		m.UpdateHash(agn.Cfg.HashKey)
-		agn.Storage.NewMetric(m)
+	if err := agn.createMetrics(counters[:], Counter); err != nil {
+		return clog.ToLog(clog.FuncName(), err)
 	}
+	return nil
 }
 
-func (agn *AgentConfig) poll() {
+func (agn *AgentConfig) createMetrics(mNames []string, mType string) error {
+	for i := range mNames {
+		m := metric.Metric{
+			ID:    mNames[i],
+			MType: mType,
+		}
+		if err := m.UpdateHash(agn.Cfg.HashKey); err != nil {
+			return clog.ToLog(clog.FuncName(), err)
+		}
+		if err := agn.Storage.NewMetric(m); err != nil {
+			return clog.ToLog(clog.FuncName(), err)
+		}
+	}
+	return nil
+}
+
+func (agn *AgentConfig) poll() error {
 	for i := range runtimeGauges {
 		if err := agn.Storage.UpdateValue(runtimeGauges[i], getRuntimeMetric(runtimeGauges[i])); err != nil {
-			log.Println(err.Error())
+			return clog.ToLog(clog.FuncName(), err)
 		}
 	}
 	for i := range customGauges {
 		if err := agn.Storage.UpdateValue(customGauges[i], 100*rand.Float64()); err != nil {
-			log.Println(err.Error())
+			return clog.ToLog(clog.FuncName(), err)
 		}
 	}
 	for i := range counters {
 		if err := agn.Storage.IncreaseDelta(counters[i]); err != nil {
-			log.Println(err.Error())
+			return clog.ToLog(clog.FuncName(), err)
 		}
 	}
+	return nil
 }
 
-func (agn *AgentConfig) report(sendBatch bool) {
+func (agn *AgentConfig) report(sendBatch bool) error {
 	if sendBatch {
 		if err := agn.sendBatch(); err != nil {
-			log.Println(err.Error())
-			return
+			return clog.ToLog(clog.FuncName(), err)
 		}
-		return
+		return nil
 	}
 	for i := range runtimeGauges {
-		go agn.sendMetric(runtimeGauges[i])
+		go func() {
+			if err := agn.sendMetric(runtimeGauges[i]); err != nil {
+				log.Println(clog.ToLog(clog.FuncName(), err))
+			}
+		}()
 	}
 	for i := range customGauges {
-		go agn.sendMetric(customGauges[i])
+		go func() {
+			if err := agn.sendMetric(customGauges[i]); err != nil {
+				log.Println(clog.ToLog(clog.FuncName(), err))
+			}
+		}()
 	}
 	for i := range counters {
-		go agn.sendMetric(counters[i])
+		go func() {
+			if err := agn.sendMetric(counters[i]); err != nil {
+				log.Println(clog.ToLog(clog.FuncName(), err))
+			}
+		}()
 	}
-
+	return nil
 }
 
 func getRuntimeMetric(name string) float64 {
@@ -83,20 +98,20 @@ func getRuntimeMetric(name string) float64 {
 func (agn *AgentConfig) getStorageBatch(resetCounters bool) ([]byte, error) {
 	allMetrics, err := agn.Storage.GetAllMetrics()
 	if err != nil {
-		return nil, err
+		return nil, clog.ToLog(clog.FuncName(), err)
 	}
 
 	var mj []byte
 	for i := range allMetrics {
 		tmp, err := allMetrics[i].GetJSON()
 		if err != nil {
-			return nil, err
+			return nil, clog.ToLog(clog.FuncName(), err)
 		}
 		mj = append(mj, tmp...)
 		mj = append(mj, []byte(",")...)
 		if resetCounters && allMetrics[i].MType == Counter {
 			if err := agn.Storage.ResetDelta(allMetrics[i].ID); err != nil {
-				return nil, err
+				return nil, clog.ToLog(clog.FuncName(), err)
 			}
 		}
 	}

@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/dcaiman/YP_GO/internal/clog"
 )
 
 const Schema = `
@@ -66,7 +68,7 @@ func (m *Metric) UpdateHash(key string) error {
 	h := hmac.New(sha256.New, []byte(key))
 	_, err := h.Write([]byte(deltaPart + valuePart))
 	if err != nil {
-		return err
+		return clog.ToLog(clog.FuncName(), err)
 	}
 	m.Hash = hex.EncodeToString(h.Sum(nil))
 	return nil
@@ -75,14 +77,14 @@ func (m *Metric) UpdateHash(key string) error {
 func (m Metric) GetJSON() ([]byte, error) {
 	mj, err := json.Marshal(m)
 	if err != nil {
-		return []byte{}, err
+		return []byte{}, clog.ToLog(clog.FuncName(), err)
 	}
 	return mj, nil
 }
 
 func (m *Metric) SetFromJSON(content []byte) error {
 	if err := json.Unmarshal(content, m); err != nil {
-		return err
+		return clog.ToLog(clog.FuncName(), err)
 	}
 	return nil
 }

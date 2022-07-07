@@ -3,6 +3,8 @@ package custom
 import (
 	"bufio"
 	"strings"
+
+	"github.com/dcaiman/YP_GO/internal/clog"
 )
 
 func CustomSplit() func(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -16,6 +18,6 @@ func CustomSplit() func(data []byte, atEOF bool) (advance int, token []byte, err
 		if !atEOF || string(data) == "" {
 			return 0, nil, nil
 		}
-		return len(data), data, bufio.ErrFinalToken
+		return len(data), data, clog.ToLog(clog.FuncName(), bufio.ErrFinalToken)
 	}
 }
