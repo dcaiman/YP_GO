@@ -66,25 +66,25 @@ func (agn *AgentConfig) report(sendBatch bool) error {
 		return nil
 	}
 	for i := range runtimeGauges {
-		go func() {
+		go func(i int) {
 			if err := agn.sendMetric(runtimeGauges[i]); err != nil {
 				log.Println(clog.ToLog(clog.FuncName(), err))
 			}
-		}()
+		}(i)
 	}
 	for i := range customGauges {
-		go func() {
+		go func(i int) {
 			if err := agn.sendMetric(customGauges[i]); err != nil {
 				log.Println(clog.ToLog(clog.FuncName(), err))
 			}
-		}()
+		}(i)
 	}
 	for i := range counters {
-		go func() {
+		go func(i int) {
 			if err := agn.sendMetric(counters[i]); err != nil {
 				log.Println(clog.ToLog(clog.FuncName(), err))
 			}
-		}()
+		}(i)
 	}
 	return nil
 }
