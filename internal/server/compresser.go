@@ -34,3 +34,5 @@ func Compresser(handler http.HandlerFunc) http.HandlerFunc {
 		handler.ServeHTTP(customWriter{ResponseWriter: w, Writer: gzipWriter}, r)
 	}
 }
+
+//НЕ СДЕЛАНО: раскодирование gzip-запросов

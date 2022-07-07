@@ -1,9 +1,11 @@
 package main
 
 import (
+	"log"
 	"time"
 
 	"github.com/dcaiman/YP_GO/internal/agent"
+	"github.com/dcaiman/YP_GO/internal/clog"
 )
 
 func main() {
@@ -18,6 +20,10 @@ func main() {
 			EnvConfig:      true,
 			SendBatch:      true,
 		},
+	}
+	if err := agn.GetExternalConfig(); err != nil {
+		log.Println(clog.ToLog(clog.FuncName(), err))
+		return
 	}
 	agent.RunAgent(&agn)
 }

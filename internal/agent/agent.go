@@ -80,18 +80,6 @@ type AgentConfig struct {
 }
 
 func RunAgent(agn *AgentConfig) {
-	if agn.Cfg.ArgConfig {
-		flag.StringVar(&agn.Cfg.SrvAddr, "a", agn.Cfg.SrvAddr, "server address")
-		flag.DurationVar(&agn.Cfg.ReportInterval, "r", agn.Cfg.ReportInterval, "report interval")
-		flag.DurationVar(&agn.Cfg.PollInterval, "p", agn.Cfg.PollInterval, "poll interval")
-		flag.StringVar(&agn.Cfg.HashKey, "k", agn.Cfg.HashKey, "hash key")
-		flag.Parse()
-	}
-	if agn.Cfg.EnvConfig {
-		if err := env.Parse(&agn.Cfg); err != nil {
-			log.Println(err.Error())
-		}
-	}
 	log.Println("AGENT CONFIG: ", agn.Cfg)
 
 	fileStorage := internalstorage.New("", agn.Cfg.HashKey)
@@ -122,4 +110,20 @@ func RunAgent(agn *AgentConfig) {
 			os.Exit(0)
 		}
 	}
+}
+
+func (agn *AgentConfig) GetExternalConfig() error {
+	if agn.Cfg.ArgConfig {
+		flag.StringVar(&agn.Cfg.SrvAddr, "a", agn.Cfg.SrvAddr, "server address")
+		flag.DurationVar(&agn.Cfg.ReportInterval, "r", agn.Cfg.ReportInterval, "report interval")
+		flag.DurationVar(&agn.Cfg.PollInterval, "p", agn.Cfg.PollInterval, "poll interval")
+		flag.StringVar(&agn.Cfg.HashKey, "k", agn.Cfg.HashKey, "hash key")
+		flag.Parse()
+	}
+	if agn.Cfg.EnvConfig {
+		if err := env.Parse(&agn.Cfg); err != nil {
+			return clog.ToLog(clog.FuncName(), err)
+		}
+	}
+	return nil
 }

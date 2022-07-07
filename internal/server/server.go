@@ -38,21 +38,6 @@ type ServerConfig struct {
 }
 
 func RunServer(srv *ServerConfig) {
-	if srv.Cfg.ArgConfig {
-		flag.BoolVar(&srv.Cfg.InitDownload, "r", srv.Cfg.InitDownload, "initial download flag")
-		flag.StringVar(&srv.Cfg.StoreFile, "f", srv.Cfg.StoreFile, "storage file destination")
-		flag.StringVar(&srv.Cfg.SrvAddr, "a", srv.Cfg.SrvAddr, "server address")
-		flag.DurationVar(&srv.Cfg.StoreInterval, "i", srv.Cfg.StoreInterval, "store interval")
-		flag.StringVar(&srv.Cfg.HashKey, "k", srv.Cfg.HashKey, "hash key")
-		flag.StringVar(&srv.Cfg.DBAddr, "d", srv.Cfg.DBAddr, "database address")
-		flag.Parse()
-	}
-	if srv.Cfg.EnvConfig {
-		if err := env.Parse(&srv.Cfg); err != nil {
-			log.Println(clog.ToLog(clog.FuncName(), err))
-		}
-	}
-
 	if srv.Cfg.DBAddr != "" {
 		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey, srv.Cfg.DropDB)
 		if err != nil {
@@ -107,4 +92,23 @@ func RunServer(srv *ServerConfig) {
 		r.Get("/", Compresser(srv.handlerCheckDBConnection))
 	})
 	log.Println(http.ListenAndServe(srv.Cfg.SrvAddr, mainRouter))
+	//НЕ СДЕЛАНО: регистрация middleware через mainRouter.Use(...)
+}
+
+func (srv *ServerConfig) GetExternalConfig() error {
+	if srv.Cfg.ArgConfig {
+		flag.BoolVar(&srv.Cfg.InitDownload, "r", srv.Cfg.InitDownload, "initial download flag")
+		flag.StringVar(&srv.Cfg.StoreFile, "f", srv.Cfg.StoreFile, "storage file destination")
+		flag.StringVar(&srv.Cfg.SrvAddr, "a", srv.Cfg.SrvAddr, "server address")
+		flag.DurationVar(&srv.Cfg.StoreInterval, "i", srv.Cfg.StoreInterval, "store interval")
+		flag.StringVar(&srv.Cfg.HashKey, "k", srv.Cfg.HashKey, "hash key")
+		flag.StringVar(&srv.Cfg.DBAddr, "d", srv.Cfg.DBAddr, "database address")
+		flag.Parse()
+	}
+	if srv.Cfg.EnvConfig {
+		if err := env.Parse(&srv.Cfg); err != nil {
+			return clog.ToLog(clog.FuncName(), err)
+		}
+	}
+	return nil
 }

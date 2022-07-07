@@ -1,8 +1,10 @@
 package main
 
 import (
+	"log"
 	"time"
 
+	"github.com/dcaiman/YP_GO/internal/clog"
 	"github.com/dcaiman/YP_GO/internal/server"
 )
 
@@ -20,6 +22,10 @@ func main() {
 			EnvConfig: true,
 			DropDB:    false,
 		},
+	}
+	if err := srv.GetExternalConfig(); err != nil {
+		log.Println(clog.ToLog(clog.FuncName(), err))
+		return
 	}
 	server.RunServer(&srv)
 }
