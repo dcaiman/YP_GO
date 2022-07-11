@@ -11,7 +11,7 @@ func CustomSplit() func(data []byte, atEOF bool) (advance int, token []byte, err
 	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		begin := strings.Index(string(data), "{")
 		end := strings.Index(string(data), "}")
-		if begin >= 0 && end >= 0 {
+		if begin >= 0 && end >= 0 && end > begin {
 			return end + 2, data[begin : end+1], nil
 		}
 

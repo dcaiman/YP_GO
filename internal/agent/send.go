@@ -87,3 +87,19 @@ func customPostRequest(url, contentType, hash string, body io.Reader) (resp *htt
 	}
 	return client, nil
 }
+
+/*
+func compressedBody(body []byte) (io.Reader, error) {
+	var buf bytes.Buffer
+	gw, err := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
+	if err != nil {
+		return nil, clog.ToLog(clog.FuncName(), err)
+	}
+	_, err = gw.Write(body)
+	if err != nil {
+		return nil, clog.ToLog(clog.FuncName(), err)
+	}
+	gw.Close()
+	return bytes.NewReader(buf.Bytes()), nil
+}
+*/
