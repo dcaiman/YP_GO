@@ -33,7 +33,7 @@ func Compresser(handler http.Handler) http.Handler {
 			return
 		}
 		defer gzipWriter.Close()
-		w.Header().Set("Content-Encoding", "gzip1")
+		w.Header().Set("Content-Encoding", "gzip")
 		handler.ServeHTTP(customWriter{ResponseWriter: w, Writer: gzipWriter}, r)
 	})
 }
