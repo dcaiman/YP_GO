@@ -74,25 +74,25 @@ func RunServer(srv *ServerConfig) {
 	log.Println("SERVER CONFIG: ", srv.Cfg)
 
 	mainRouter := chi.NewRouter()
+	mainRouter.Use(Compresser)
 	mainRouter.Route("/", func(r chi.Router) {
-		r.Get("/", Compresser(srv.handlerGetAll))
+		r.Get("/", srv.handlerGetAll)
 	})
 	mainRouter.Route("/value", func(r chi.Router) {
-		r.Post("/", Compresser(srv.handlerGetMetricJSON))
-		r.Get("/{type}/{name}", Compresser(srv.handlerGetMetric))
+		r.Post("/", srv.handlerGetMetricJSON)
+		r.Get("/{type}/{name}", srv.handlerGetMetric)
 	})
 	mainRouter.Route("/update", func(r chi.Router) {
-		r.Post("/", Compresser(srv.handlerUpdateJSON))
-		r.Post("/{type}/{name}/{val}", Compresser(srv.handlerUpdateDirect))
+		r.Post("/", srv.handlerUpdateJSON)
+		r.Post("/{type}/{name}/{val}", srv.handlerUpdateDirect)
 	})
 	mainRouter.Route("/updates", func(r chi.Router) {
-		r.Post("/", Compresser(srv.handlerUpdateBatch))
+		r.Post("/", srv.handlerUpdateBatch)
 	})
 	mainRouter.Route("/ping", func(r chi.Router) {
-		r.Get("/", Compresser(srv.handlerCheckDBConnection))
+		r.Get("/", srv.handlerCheckDBConnection)
 	})
 	log.Println(http.ListenAndServe(srv.Cfg.SrvAddr, mainRouter))
-	//НЕ СДЕЛАНО: регистрация middleware через mainRouter.Use(...)
 }
 
 func (srv *ServerConfig) GetExternalConfig() error {
