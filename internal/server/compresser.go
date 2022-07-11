@@ -10,15 +10,6 @@ import (
 	"github.com/dcaiman/YP_GO/internal/clog"
 )
 
-var typesToCompress = [...]string{
-	"application/javascript",
-	"application/json",
-	"text/css",
-	"text/html",
-	"text/plain",
-	"text/xml",
-}
-
 type customWriter struct {
 	http.ResponseWriter
 	Writer io.Writer
@@ -42,7 +33,7 @@ func Compresser(handler http.Handler) http.Handler {
 			r.Body = gzipReader
 		}
 
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") || !contains(typesToCompress[:], r.Header.Get("Content-Type")) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 			handler.ServeHTTP(w, r)
 			return
 		}
@@ -59,6 +50,7 @@ func Compresser(handler http.Handler) http.Handler {
 	})
 }
 
+/*
 func contains(arr []string, s string) bool {
 	for i := range arr {
 		if arr[i] == s {
@@ -67,3 +59,4 @@ func contains(arr []string, s string) bool {
 	}
 	return false
 }
+*/

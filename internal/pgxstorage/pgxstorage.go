@@ -56,7 +56,6 @@ type MetricStorage struct {
 	sync.RWMutex
 	DB      *sql.DB
 	HashKey string
-	Addr    string
 }
 
 func New(dbAddr, hashKey string, drop bool) (*MetricStorage, error) {
@@ -67,7 +66,6 @@ func New(dbAddr, hashKey string, drop bool) (*MetricStorage, error) {
 	ms := &MetricStorage{
 		HashKey: hashKey,
 		DB:      tmpDB,
-		Addr:    dbAddr,
 	}
 
 	if drop {
