@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"encoding/json"
+	"errors"
 	"log"
 	"math/rand"
 	"reflect"
@@ -29,10 +31,7 @@ func (agn *AgentConfig) createMetrics(mNames []string, mType string) error {
 			ID:    mNames[i],
 			MType: mType,
 		}
-		if err := m.UpdateHash(agn.Cfg.HashKey); err != nil {
-			return clog.ToLog(clog.FuncName(), err)
-		}
-		if err := agn.Storage.NewMetric(m); err != nil {
+		if err := agn.Storage.UpdateMetric(m); err != nil {
 			return clog.ToLog(clog.FuncName(), err)
 		}
 	}
@@ -41,17 +40,35 @@ func (agn *AgentConfig) createMetrics(mNames []string, mType string) error {
 
 func (agn *AgentConfig) poll() error {
 	for i := range runtimeGauges {
-		if err := agn.Storage.UpdateValue(runtimeGauges[i], getRuntimeMetric(runtimeGauges[i])); err != nil {
+		val := getRuntimeMetricValue(runtimeGauges[i])
+		m := metric.Metric{
+			ID:    runtimeGauges[i],
+			MType: Gauge,
+			Value: &val,
+		}
+		if err := agn.Storage.UpdateMetric(m); err != nil {
 			return clog.ToLog(clog.FuncName(), err)
 		}
 	}
 	for i := range customGauges {
-		if err := agn.Storage.UpdateValue(customGauges[i], 100*rand.Float64()); err != nil {
+		val := 100 * rand.Float64()
+		m := metric.Metric{
+			ID:    customGauges[i],
+			MType: Gauge,
+			Value: &val,
+		}
+		if err := agn.Storage.UpdateMetric(m); err != nil {
 			return clog.ToLog(clog.FuncName(), err)
 		}
 	}
 	for i := range counters {
-		if err := agn.Storage.IncreaseDelta(counters[i]); err != nil {
+		var del int64 = 1
+		m := metric.Metric{
+			ID:    counters[i],
+			MType: Counter,
+			Delta: &del,
+		}
+		if err := agn.Storage.UpdateMetric(m); err != nil {
 			return clog.ToLog(clog.FuncName(), err)
 		}
 	}
@@ -89,31 +106,58 @@ func (agn *AgentConfig) report(sendBatch bool) error {
 	return nil
 }
 
-func getRuntimeMetric(name string) float64 {
+func getRuntimeMetricValue(name string) float64 {
 	mem := &runtime.MemStats{}
 	runtime.ReadMemStats(mem)
 	return reflect.Indirect(reflect.ValueOf(mem)).FieldByName(name).Convert(reflect.TypeOf(0.0)).Float()
 }
 
-func (agn *AgentConfig) getStorageBatch(resetCounters bool) ([]byte, error) {
-	allMetrics, err := agn.Storage.GetAllMetrics()
+func (agn *AgentConfig) getStorageBatch() ([]byte, error) {
+	allMetrics, err := agn.Storage.GetBatch()
 	if err != nil {
 		return nil, clog.ToLog(clog.FuncName(), err)
 	}
 
 	var mj []byte
 	for i := range allMetrics {
-		tmp, err := allMetrics[i].GetJSON()
+		if err := allMetrics[i].UpdateHash(agn.Cfg.HashKey); err != nil {
+			return nil, clog.ToLog(clog.FuncName(), err)
+		}
+		tmp, err := json.Marshal(allMetrics[i])
 		if err != nil {
 			return nil, clog.ToLog(clog.FuncName(), err)
 		}
 		mj = append(mj, tmp...)
 		mj = append(mj, []byte(",")...)
-		if resetCounters && allMetrics[i].MType == Counter {
-			if err := agn.Storage.ResetDelta(allMetrics[i].ID); err != nil {
-				return nil, clog.ToLog(clog.FuncName(), err)
-			}
-		}
+	}
+	if mj == nil {
+		return nil, clog.ToLog(clog.FuncName(), errors.New("empty batch"))
 	}
 	return mj, nil
 }
+
+func (agn *AgentConfig) resetCounters() error {
+	if err := agn.createMetrics(counters[:], Counter); err != nil {
+		return clog.ToLog(clog.FuncName(), err)
+	}
+	return nil
+}
+
+func (agn *AgentConfig) resetCounter(name string) error {
+	if err := agn.Storage.UpdateMetric(metric.Metric{
+		ID:    name,
+		MType: Counter,
+	}); err != nil {
+		return clog.ToLog(clog.FuncName(), err)
+	}
+	return nil
+}
+
+/*
+	if resetCounters && allMetrics[i].MType == Counter {
+		allMetrics[i].Delta = &del
+		if err := agn.Storage.UpdateMetric(allMetrics[i]); err != nil {
+			return nil, clog.ToLog(clog.FuncName(), err)
+		}
+	}
+*/

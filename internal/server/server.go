@@ -11,7 +11,6 @@ import (
 	"github.com/dcaiman/YP_GO/internal/clog"
 	"github.com/dcaiman/YP_GO/internal/internalstorage"
 	"github.com/dcaiman/YP_GO/internal/metric"
-	"github.com/dcaiman/YP_GO/internal/pgxstorage"
 
 	"github.com/caarlos0/env"
 	"github.com/go-chi/chi/v5"
@@ -25,7 +24,7 @@ type EnvConfig struct {
 	InitDownload  bool          `env:"RESTORE"`
 	HashKey       string        `env:"KEY"`
 
-	SyncUpload bool
+	SyncUpload chan struct{}
 
 	EnvConfig bool
 	ArgConfig bool
@@ -39,18 +38,19 @@ type ServerConfig struct {
 
 func RunServer(srv *ServerConfig) {
 	if srv.Cfg.DBAddr != "" {
-		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey, srv.Cfg.DropDB)
-		if err != nil {
-			log.Println(clog.ToLog(clog.FuncName(), err))
-		}
-		defer dbStorage.Close()
-		srv.Storage = dbStorage
+		/*
+			dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey, srv.Cfg.DropDB)
+			if err != nil {
+				log.Println(clog.ToLog(clog.FuncName(), err))
+			}
+			defer dbStorage.Close()
+			srv.Storage = dbStorage
+		*/
 	} else if srv.Cfg.StoreFile != "" {
 		fileStorage := internalstorage.New(srv.Cfg.StoreFile, srv.Cfg.HashKey)
-		srv.Storage = fileStorage
 
 		if srv.Cfg.InitDownload {
-			err := srv.Storage.DownloadStorage()
+			err := fileStorage.DownloadStorage()
 			if err != nil {
 				log.Println(clog.ToLog(clog.FuncName(), err))
 			}
@@ -60,15 +60,23 @@ func RunServer(srv *ServerConfig) {
 				uploadTimer := time.NewTicker(srv.Cfg.StoreInterval)
 				for {
 					<-uploadTimer.C
-					err := srv.Storage.UploadStorage()
-					if err != nil {
+					if err := fileStorage.UploadStorage(); err != nil {
 						log.Println(clog.ToLog(clog.FuncName(), err))
 					}
 				}
 			}()
 		} else {
-			srv.Cfg.SyncUpload = true
+			srv.Cfg.SyncUpload = make(chan struct{})
+			go func(c chan struct{}) {
+				for {
+					<-c
+					if err := fileStorage.UploadStorage(); err != nil {
+						log.Println(clog.ToLog(clog.FuncName(), err))
+					}
+				}
+			}(srv.Cfg.SyncUpload)
 		}
+		srv.Storage = fileStorage
 	}
 
 	log.Println("SERVER CONFIG: ", srv.Cfg)

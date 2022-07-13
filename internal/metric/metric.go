@@ -5,9 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"io"
 
 	"github.com/dcaiman/YP_GO/internal/clog"
 )
@@ -22,25 +20,13 @@ const Schema = `
 	)`
 
 type MStorage interface {
-	NewMetric(m Metric) error
-	GetMetric(name string) (Metric, error)
-	GetAllMetrics() ([]Metric, error)
+	GetMetric(id string) (Metric, error)
+	GetBatch() ([]Metric, error)
 
-	MetricExists(name string) (bool, error)
+	UpdateMetric(m Metric) error
+	UpdateBatch(batch []Metric) error
+
 	AccessCheck(ctx context.Context) error
-
-	UpdateBatch(r io.Reader) error
-	UpdateMetricFromJSON(content []byte) error
-	UpdateMetricFromStruct(m Metric) error
-
-	UpdateValue(name string, val float64) error
-	UpdateDelta(name string, del int64) error
-	AddDelta(name string, del int64) error
-	IncreaseDelta(name string) error
-	ResetDelta(name string) error
-
-	DownloadStorage() error
-	UploadStorage() error
 }
 
 type Metric struct {
@@ -71,20 +57,5 @@ func (m *Metric) UpdateHash(key string) error {
 		return clog.ToLog(clog.FuncName(), err)
 	}
 	m.Hash = hex.EncodeToString(h.Sum(nil))
-	return nil
-}
-
-func (m Metric) GetJSON() ([]byte, error) {
-	mj, err := json.Marshal(m)
-	if err != nil {
-		return []byte{}, clog.ToLog(clog.FuncName(), err)
-	}
-	return mj, nil
-}
-
-func (m *Metric) SetFromJSON(content []byte) error {
-	if err := json.Unmarshal(content, m); err != nil {
-		return clog.ToLog(clog.FuncName(), err)
-	}
 	return nil
 }

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"log"
@@ -19,6 +20,9 @@ func (agn *AgentConfig) sendMetric(name string) error {
 	if err != nil {
 		return clog.ToLog(clog.FuncName(), err)
 	}
+	if err := m.UpdateHash(agn.Cfg.HashKey); err != nil {
+		return clog.ToLog(clog.FuncName(), err)
+	}
 
 	switch agn.Cfg.CType {
 	case TextPlainCT:
@@ -33,7 +37,7 @@ func (agn *AgentConfig) sendMetric(name string) error {
 		url = agn.Cfg.SrvAddr + "/update/" + m.MType + "/" + m.ID + "/" + val
 		body = nil
 	case JSONCT:
-		tmpBody, err := m.GetJSON()
+		tmpBody, err := json.Marshal(m)
 		if err != nil {
 			return clog.ToLog(clog.FuncName(), err)
 		}
@@ -48,7 +52,7 @@ func (agn *AgentConfig) sendMetric(name string) error {
 	}
 	defer res.Body.Close()
 	if m.MType == Counter {
-		if err := agn.Storage.ResetDelta(name); err != nil {
+		if err := agn.resetCounter(name); err != nil {
 			return clog.ToLog(clog.FuncName(), err)
 		}
 	}
@@ -57,7 +61,7 @@ func (agn *AgentConfig) sendMetric(name string) error {
 }
 
 func (agn *AgentConfig) sendBatch() error {
-	body, err := agn.getStorageBatch(true)
+	body, err := agn.getStorageBatch()
 	if err != nil {
 		return clog.ToLog(clog.FuncName(), err)
 	}
@@ -66,6 +70,9 @@ func (agn *AgentConfig) sendBatch() error {
 		return clog.ToLog(clog.FuncName(), err)
 	}
 	defer res.Body.Close()
+	if err := agn.resetCounters(); err != nil {
+		return clog.ToLog(clog.FuncName(), err)
+	}
 	log.Println("SEND BATCH: ", res.Status, res.Request.URL)
 	return nil
 }

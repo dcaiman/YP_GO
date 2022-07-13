@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/dcaiman/YP_GO/internal/clog"
+	"github.com/dcaiman/YP_GO/internal/custom"
 	"github.com/dcaiman/YP_GO/internal/metric"
 	"github.com/go-chi/chi/v5"
 )
@@ -48,16 +51,42 @@ func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http
 }
 
 func (srv *ServerConfig) handlerUpdateBatch(w http.ResponseWriter, r *http.Request) {
-	if err := srv.Storage.UpdateBatch(r.Body); err != nil {
+	batch := []metric.Metric{}
+	scanner := bufio.NewScanner(r.Body)
+	scanner.Split(custom.CustomSplit())
+	for scanner.Scan() {
+		m := metric.Metric{}
+		if err := json.Unmarshal(scanner.Bytes(), &m); err != nil {
+			err := clog.ToLog(clog.FuncName(), err)
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if _, err := srv.checkHash(m); err != nil {
+			err := clog.ToLog(clog.FuncName(), err)
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		m.Hash = ""
+		batch = append(batch, m)
+	}
+	if err := srv.Storage.UpdateBatch(batch); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	if srv.Cfg.SyncUpload != nil {
+		var tmp struct{}
+		srv.Cfg.SyncUpload <- tmp
+	}
 }
 
 func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
-	content, err := io.ReadAll(r.Body)
+	mj, err := io.ReadAll(r.Body)
 	if err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
@@ -66,9 +95,10 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 	}
 
 	m := metric.Metric{}
-	if err := m.SetFromJSON(content); err != nil {
+	if err := json.Unmarshal(mj, &m); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -82,6 +112,7 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
+	m.Hash = ""
 
 	if err := checkTypeSupport(m.MType); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
@@ -90,45 +121,22 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	exists, err := srv.Storage.MetricExists(m.ID)
-	if err != nil {
+	if err := srv.Storage.UpdateMetric(m); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if exists {
-		switch m.MType {
-		case Gauge:
-			err = srv.Storage.UpdateValue(m.ID, *m.Value)
-		case Counter:
-			err = srv.Storage.AddDelta(m.ID, *m.Delta)
-		}
-		if err != nil {
-			err := clog.ToLog(clog.FuncName(), err)
-			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	} else {
-		if err := srv.Storage.UpdateMetricFromStruct(m); err != nil {
-			err := clog.ToLog(clog.FuncName(), err)
-			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-
-	if srv.Cfg.SyncUpload {
-		srv.Storage.UploadStorage()
+	if srv.Cfg.SyncUpload != nil {
+		var tmp struct{}
+		srv.Cfg.SyncUpload <- tmp
 	}
 }
 
 func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Request) {
 	mType := chi.URLParam(r, "type")
-	err := checkTypeSupport(mType)
-	if err != nil {
+	if err := checkTypeSupport(mType); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusNotImplemented)
@@ -138,6 +146,7 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 	mVal := chi.URLParam(r, "val")
 	var mValue float64
 	var mDelta int64
+	var err error
 	switch mType {
 	case Gauge:
 		mValue, err = strconv.ParseFloat(mVal, 64)
@@ -152,50 +161,22 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 	}
 
 	mName := chi.URLParam(r, "name")
-	exists, err := srv.Storage.MetricExists(mName)
-	if err != nil {
+	m := metric.Metric{
+		ID:    mName,
+		MType: mType,
+		Value: &mValue,
+		Delta: &mDelta,
+	}
+	if err := srv.Storage.UpdateMetric(m); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if exists {
-		switch mType {
-		case Gauge:
-			err = srv.Storage.UpdateValue(mName, mValue)
-		case Counter:
-			fmt.Println(mDelta)
-			err = srv.Storage.AddDelta(mName, mDelta)
-		}
-		if err != nil {
-			err := clog.ToLog(clog.FuncName(), err)
-			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	} else {
-		m := metric.Metric{
-			ID:    mName,
-			MType: mType,
-			Value: &mValue,
-			Delta: &mDelta,
-		}
-		if err := m.UpdateHash(srv.Cfg.HashKey); err != nil {
-			err := clog.ToLog(clog.FuncName(), err)
-			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if err = srv.Storage.NewMetric(m); err != nil {
-			err := clog.ToLog(clog.FuncName(), err)
-			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}
 
-	if srv.Cfg.SyncUpload {
-		srv.Storage.UploadStorage()
+	if srv.Cfg.SyncUpload != nil {
+		var tmp struct{}
+		srv.Cfg.SyncUpload <- tmp
 	}
 }
 
@@ -208,7 +189,7 @@ func (srv *ServerConfig) handlerGetAll(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	allMetrics, err := srv.Storage.GetAllMetrics()
+	allMetrics, err := srv.Storage.GetBatch()
 	if err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
@@ -219,7 +200,7 @@ func (srv *ServerConfig) handlerGetAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Request) {
-	content, err := io.ReadAll(r.Body)
+	mjReq, err := io.ReadAll(r.Body)
 	if err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
@@ -228,7 +209,7 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 	}
 
 	mReq := metric.Metric{}
-	if err := mReq.SetFromJSON(content); err != nil {
+	if err := json.Unmarshal(mjReq, &mReq); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -261,7 +242,7 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	mResJSON, err := mRes.GetJSON()
+	mjRes, err := json.Marshal(mRes)
 	if err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
@@ -269,7 +250,7 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 		return
 	}
 	w.Header().Set("Content-Type", JSONCT)
-	w.Write(mResJSON)
+	w.Write(mjRes)
 }
 
 func (srv *ServerConfig) handlerGetMetric(w http.ResponseWriter, r *http.Request) {
@@ -290,7 +271,9 @@ func (srv *ServerConfig) handlerGetMetric(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if m.MType != mType {
-		http.Error(w, "cannot get: metric <"+mName+"> is not <"+mType+">", http.StatusNotFound)
+		err := clog.ToLog(clog.FuncName(), errors.New("cannot get: metric <"+mName+"> is not <"+mType+">"))
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
@@ -318,9 +301,11 @@ func checkTypeSupport(mType string) error {
 }
 
 func (srv *ServerConfig) checkHash(m metric.Metric) (string, error) {
+	tmp := m
 	h := m.Hash
 	m.UpdateHash(srv.Cfg.HashKey)
 	if h != m.Hash {
+		fmt.Println(m, tmp)
 		return m.Hash, clog.ToLog(clog.FuncName(), errors.New("inconsistent hashes"))
 	}
 	return m.Hash, nil
