@@ -15,8 +15,7 @@ const Schema = `
 		mname CHARACTER VARYING PRIMARY KEY,
 		mtype CHARACTER VARYING,
 		mval DOUBLE PRECISION,
-		mdel BIGINT,
-		mhash CHARACTER VARYING
+		mdel BIGINT
 	)`
 
 type MStorage interface {

@@ -11,6 +11,7 @@ import (
 	"github.com/dcaiman/YP_GO/internal/clog"
 	"github.com/dcaiman/YP_GO/internal/internalstorage"
 	"github.com/dcaiman/YP_GO/internal/metric"
+	"github.com/dcaiman/YP_GO/internal/pgxstorage"
 
 	"github.com/caarlos0/env"
 	"github.com/go-chi/chi/v5"
@@ -37,16 +38,14 @@ type ServerConfig struct {
 }
 
 func RunServer(srv *ServerConfig) {
-	if false {
-		//if srv.Cfg.DBAddr != "" {
-		/*
-			dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey, srv.Cfg.DropDB)
-			if err != nil {
-				log.Println(clog.ToLog(clog.FuncName(), err))
-			}
-			defer dbStorage.Close()
-			srv.Storage = dbStorage
-		*/
+	if srv.Cfg.DBAddr != "" {
+		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.DropDB)
+		if err != nil {
+			log.Println(clog.ToLog(clog.FuncName(), err))
+		}
+		defer dbStorage.Close()
+		srv.Storage = dbStorage
+
 	} else if srv.Cfg.StoreFile != "" {
 		fileStorage := internalstorage.New(srv.Cfg.StoreFile, srv.Cfg.HashKey)
 
