@@ -15,7 +15,7 @@ func main() {
 			PollInterval:   2 * time.Second,
 			ReportInterval: 6 * time.Second,
 			SrvAddr:        "127.0.0.1:8080",
-			HashKey:        "key1",
+			HashKey:        "key",
 			ArgConfig:      true,
 			EnvConfig:      true,
 			SendBatch:      true,

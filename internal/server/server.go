@@ -45,7 +45,6 @@ func RunServer(srv *ServerConfig) {
 		}
 		defer dbStorage.Close()
 		srv.Storage = dbStorage
-
 	} else if srv.Cfg.StoreFile != "" {
 		fileStorage := internalstorage.New(srv.Cfg.StoreFile, srv.Cfg.HashKey)
 

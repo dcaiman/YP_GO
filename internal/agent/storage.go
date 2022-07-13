@@ -152,12 +152,3 @@ func (agn *AgentConfig) resetCounter(name string) error {
 	}
 	return nil
 }
-
-/*
-	if resetCounters && allMetrics[i].MType == Counter {
-		allMetrics[i].Delta = &del
-		if err := agn.Storage.UpdateMetric(allMetrics[i]); err != nil {
-			return nil, clog.ToLog(clog.FuncName(), err)
-		}
-	}
-*/
