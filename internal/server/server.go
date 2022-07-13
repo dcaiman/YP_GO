@@ -37,7 +37,8 @@ type ServerConfig struct {
 }
 
 func RunServer(srv *ServerConfig) {
-	if srv.Cfg.DBAddr != "" {
+	if false {
+		//if srv.Cfg.DBAddr != "" {
 		/*
 			dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.HashKey, srv.Cfg.DropDB)
 			if err != nil {
