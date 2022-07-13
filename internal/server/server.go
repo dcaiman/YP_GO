@@ -1,4 +1,3 @@
-//
 package server
 
 import (
@@ -7,7 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dcaiman/YP_GO/internal/metrics"
+	_ "github.com/jackc/pgx/v4/stdlib"
+
+	"github.com/dcaiman/YP_GO/internal/clog"
+	"github.com/dcaiman/YP_GO/internal/internalstorage"
+	"github.com/dcaiman/YP_GO/internal/metric"
+	"github.com/dcaiman/YP_GO/internal/pgxstorage"
 
 	"github.com/caarlos0/env"
 	"github.com/go-chi/chi/v5"
@@ -15,76 +19,103 @@ import (
 
 type EnvConfig struct {
 	SrvAddr       string        `env:"ADDRESS"`
-	StoreInterval time.Duration `env:"STORE_INTERVAL"`
 	StoreFile     string        `env:"STORE_FILE"`
+	DBAddr        string        `env:"DATABASE_DSN"`
+	StoreInterval time.Duration `env:"STORE_INTERVAL"`
 	InitDownload  bool          `env:"RESTORE"`
-	EnvConfig     bool
-	ArgConfig     bool
-	SyncUpload    bool
+	HashKey       string        `env:"KEY"`
+
+	SyncUpload chan struct{}
+
+	EnvConfig bool
+	ArgConfig bool
+	DropDB    bool
 }
 
-var cfg EnvConfig
-var storage metrics.Metrics
+type ServerConfig struct {
+	Storage metric.MStorage
+	Cfg     EnvConfig
+}
 
-func RunServer() {
-	storage = metrics.Metrics{
-		Gauges:   map[string]float64{},
-		Counters: map[string]int64{},
-	}
-	cfg = EnvConfig{
-		SrvAddr:       "127.0.0.1:8080",
-		StoreInterval: 0,
-		StoreFile:     "/metricsStorage.json",
-		InitDownload:  true,
-		ArgConfig:     true,
-		EnvConfig:     true,
-	}
-	if cfg.ArgConfig {
-		flag.BoolVar(&cfg.InitDownload, "r", cfg.InitDownload, "initial download flag")
-		flag.StringVar(&cfg.StoreFile, "f", cfg.StoreFile, "storage file destination")
-		flag.StringVar(&cfg.SrvAddr, "a", cfg.SrvAddr, "server address")
-		flag.DurationVar(&cfg.StoreInterval, "i", cfg.StoreInterval, "store interval")
-		flag.Parse()
-	}
-	if cfg.EnvConfig {
-		if err := env.Parse(&cfg); err != nil {
-			log.Println(err.Error())
-		}
-	}
-	if cfg.InitDownload && cfg.StoreFile != "" {
-		err := storage.DownloadStorage(cfg.StoreFile)
+func RunServer(srv *ServerConfig) {
+	if srv.Cfg.DBAddr != "" {
+		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.DropDB)
 		if err != nil {
-			log.Println(err.Error())
+			log.Println(clog.ToLog(clog.FuncName(), err))
 		}
-	}
-	if cfg.StoreInterval != 0 {
-		go func() {
-			uploadTimer := time.NewTicker(cfg.StoreInterval)
-			for {
-				<-uploadTimer.C
-				err := storage.UploadStorage(cfg.StoreFile)
-				if err != nil {
-					log.Println(err.Error())
-				}
+		defer dbStorage.Close()
+		srv.Storage = dbStorage
+	} else if srv.Cfg.StoreFile != "" {
+		fileStorage := internalstorage.New(srv.Cfg.StoreFile, srv.Cfg.HashKey)
+
+		if srv.Cfg.InitDownload {
+			err := fileStorage.DownloadStorage()
+			if err != nil {
+				log.Println(clog.ToLog(clog.FuncName(), err))
 			}
-		}()
-	} else {
-		cfg.SyncUpload = true
+		}
+		if srv.Cfg.StoreInterval != 0 {
+			go func() {
+				uploadTimer := time.NewTicker(srv.Cfg.StoreInterval)
+				for {
+					<-uploadTimer.C
+					if err := fileStorage.UploadStorage(); err != nil {
+						log.Println(clog.ToLog(clog.FuncName(), err))
+					}
+				}
+			}()
+		} else {
+			srv.Cfg.SyncUpload = make(chan struct{})
+			go func(c chan struct{}) {
+				for {
+					<-c
+					if err := fileStorage.UploadStorage(); err != nil {
+						log.Println(clog.ToLog(clog.FuncName(), err))
+					}
+				}
+			}(srv.Cfg.SyncUpload)
+		}
+		srv.Storage = fileStorage
 	}
-	log.Println("SERVER CONFIG: ", cfg)
+
+	log.Println("SERVER CONFIG: ", srv.Cfg)
 
 	mainRouter := chi.NewRouter()
+	mainRouter.Use(Compresser)
 	mainRouter.Route("/", func(r chi.Router) {
-		r.Get("/", Compresser(handlerGetAll))
+		r.Get("/", srv.handlerGetAll)
 	})
 	mainRouter.Route("/value", func(r chi.Router) {
-		r.Post("/", Compresser(handlerGetMetricJSON))
-		r.Get("/{type}", Compresser(handlerGetMetricsByType))
-		r.Get("/{type}/{name}", Compresser(handlerGetMetric))
+		r.Post("/", srv.handlerGetMetricJSON)
+		r.Get("/{type}/{name}", srv.handlerGetMetric)
 	})
 	mainRouter.Route("/update", func(r chi.Router) {
-		r.Post("/", Compresser(handlerUpdateJSON))
-		r.Post("/{type}/{name}/{val}", Compresser(handlerUpdateDirect))
+		r.Post("/", srv.handlerUpdateJSON)
+		r.Post("/{type}/{name}/{val}", srv.handlerUpdateDirect)
 	})
-	log.Println(http.ListenAndServe(cfg.SrvAddr, mainRouter))
+	mainRouter.Route("/updates", func(r chi.Router) {
+		r.Post("/", srv.handlerUpdateBatch)
+	})
+	mainRouter.Route("/ping", func(r chi.Router) {
+		r.Get("/", srv.handlerCheckDBConnection)
+	})
+	log.Println(http.ListenAndServe(srv.Cfg.SrvAddr, mainRouter))
+}
+
+func (srv *ServerConfig) GetExternalConfig() error {
+	if srv.Cfg.ArgConfig {
+		flag.BoolVar(&srv.Cfg.InitDownload, "r", srv.Cfg.InitDownload, "initial download flag")
+		flag.StringVar(&srv.Cfg.StoreFile, "f", srv.Cfg.StoreFile, "storage file destination")
+		flag.StringVar(&srv.Cfg.SrvAddr, "a", srv.Cfg.SrvAddr, "server address")
+		flag.DurationVar(&srv.Cfg.StoreInterval, "i", srv.Cfg.StoreInterval, "store interval")
+		flag.StringVar(&srv.Cfg.HashKey, "k", srv.Cfg.HashKey, "hash key")
+		flag.StringVar(&srv.Cfg.DBAddr, "d", srv.Cfg.DBAddr, "database address")
+		flag.Parse()
+	}
+	if srv.Cfg.EnvConfig {
+		if err := env.Parse(&srv.Cfg); err != nil {
+			return clog.ToLog(clog.FuncName(), err)
+		}
+	}
+	return nil
 }

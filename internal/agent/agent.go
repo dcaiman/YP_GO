@@ -8,13 +8,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dcaiman/YP_GO/internal/metrics"
+	"github.com/dcaiman/YP_GO/internal/clog"
+	"github.com/dcaiman/YP_GO/internal/internalstorage"
+	"github.com/dcaiman/YP_GO/internal/metric"
 
 	"github.com/caarlos0/env"
 )
-
-var storage metrics.Metrics
-var cfg EnvConfig
 
 var runtimeGauges = [...]string{
 	"Alloc",
@@ -54,49 +53,58 @@ var counters = [...]string{
 	"PollCount",
 }
 
+const (
+	Gauge       = "gauge"
+	Counter     = "counter"
+	TextPlainCT = "text/plain"
+	JSONCT      = "application/json"
+	HTTPStr     = "http://"
+)
+
 type EnvConfig struct {
 	PollInterval   time.Duration `env:"POLL_INTERVAL"`
 	ReportInterval time.Duration `env:"REPORT_INTERVAL"`
 	SrvAddr        string        `env:"ADDRESS"`
-	EnvConfig      bool
-	ArgConfig      bool
+	HashKey        string        `env:"KEY"`
+
+	CType string
+
+	EnvConfig bool
+	ArgConfig bool
+	SendBatch bool
 }
 
-func RunAgent() {
-	storage = metrics.Metrics{
-		Gauges:   map[string]float64{},
-		Counters: map[string]int64{},
-	}
-	cfg = EnvConfig{
-		PollInterval:   3 * time.Second,
-		ReportInterval: 7 * time.Second,
-		SrvAddr:        "127.0.0.1:8080",
-		ArgConfig:      true,
-		EnvConfig:      true,
-	}
-	if cfg.ArgConfig {
-		flag.StringVar(&cfg.SrvAddr, "a", cfg.SrvAddr, "server address")
-		flag.DurationVar(&cfg.ReportInterval, "r", cfg.ReportInterval, "report interval")
-		flag.DurationVar(&cfg.PollInterval, "p", cfg.PollInterval, "poll interval")
-		flag.Parse()
-	}
-	if cfg.EnvConfig {
-		if err := env.Parse(&cfg); err != nil {
-			log.Println(err.Error())
-		}
-	}
-	log.Println("AGENT CONFIG: ", cfg)
+type AgentConfig struct {
+	Storage metric.MStorage
+	Cfg     EnvConfig
+}
+
+func RunAgent(agn *AgentConfig) {
+	log.Println("AGENT CONFIG: ", agn.Cfg)
+
+	fileStorage := internalstorage.New("", agn.Cfg.HashKey)
+	agn.Storage = fileStorage
+
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	pollTimer := time.NewTicker(cfg.PollInterval)
-	reportTimer := time.NewTicker(cfg.ReportInterval)
+	pollTimer := time.NewTicker(agn.Cfg.PollInterval)
+	reportTimer := time.NewTicker(agn.Cfg.ReportInterval)
+
+	if err := agn.prepareStorage(); err != nil {
+		log.Println(clog.ToLog(clog.FuncName(), err))
+	}
+
 	for {
 		select {
 		case <-pollTimer.C:
-			poll()
+			if err := agn.poll(); err != nil {
+				log.Println(clog.ToLog(clog.FuncName(), err))
+			}
 		case <-reportTimer.C:
-			report()
+			if err := agn.report(agn.Cfg.SendBatch); err != nil {
+				log.Println(clog.ToLog(clog.FuncName(), err))
+			}
 		case <-signalCh:
 			log.Println("EXIT")
 			os.Exit(0)
@@ -104,18 +112,18 @@ func RunAgent() {
 	}
 }
 
-func poll() {
-	for i := range runtimeGauges {
-		storage.UpdateGaugeByRuntimeValue(runtimeGauges[i])
+func (agn *AgentConfig) GetExternalConfig() error {
+	if agn.Cfg.ArgConfig {
+		flag.StringVar(&agn.Cfg.SrvAddr, "a", agn.Cfg.SrvAddr, "server address")
+		flag.DurationVar(&agn.Cfg.ReportInterval, "r", agn.Cfg.ReportInterval, "report interval")
+		flag.DurationVar(&agn.Cfg.PollInterval, "p", agn.Cfg.PollInterval, "poll interval")
+		flag.StringVar(&agn.Cfg.HashKey, "k", agn.Cfg.HashKey, "hash key")
+		flag.Parse()
 	}
-	storage.UpdateGaugeByRandomValue(customGauges[0])
-	storage.IncreaseCounter(counters[0], 1)
-}
-
-func report() {
-	go storage.SendMetric(cfg.SrvAddr, metrics.JSONCT, counters[0], metrics.Counter)
-	go storage.SendMetric(cfg.SrvAddr, metrics.JSONCT, customGauges[0], metrics.Gauge)
-	for i := range runtimeGauges {
-		go storage.SendMetric(cfg.SrvAddr, metrics.JSONCT, runtimeGauges[i], metrics.Gauge)
+	if agn.Cfg.EnvConfig {
+		if err := env.Parse(&agn.Cfg); err != nil {
+			return clog.ToLog(clog.FuncName(), err)
+		}
 	}
+	return nil
 }
