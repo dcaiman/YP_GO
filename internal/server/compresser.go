@@ -49,14 +49,3 @@ func Compresser(handler http.Handler) http.Handler {
 		handler.ServeHTTP(customWriter{ResponseWriter: w, Writer: gzipWriter}, r)
 	})
 }
-
-/*
-func contains(arr []string, s string) bool {
-	for i := range arr {
-		if arr[i] == s {
-			return true
-		}
-	}
-	return false
-}
-*/

@@ -123,12 +123,10 @@ func (agn *AgentConfig) getStorageBatch() ([]byte, error) {
 		if err := allMetrics[i].UpdateHash(agn.Cfg.HashKey); err != nil {
 			return nil, clog.ToLog(clog.FuncName(), err)
 		}
-		tmp, err := json.Marshal(allMetrics[i])
-		if err != nil {
-			return nil, clog.ToLog(clog.FuncName(), err)
-		}
-		mj = append(mj, tmp...)
-		mj = append(mj, []byte(",")...)
+	}
+	mj, err = json.Marshal(allMetrics)
+	if err != nil {
+		return nil, clog.ToLog(clog.FuncName(), err)
 	}
 	if mj == nil {
 		return nil, clog.ToLog(clog.FuncName(), errors.New("empty batch"))

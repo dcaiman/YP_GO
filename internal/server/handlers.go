@@ -12,7 +12,6 @@ import (
 	"text/template"
 
 	"github.com/dcaiman/YP_GO/internal/clog"
-	"github.com/dcaiman/YP_GO/internal/custom"
 	"github.com/dcaiman/YP_GO/internal/metric"
 	"github.com/go-chi/chi/v5"
 )
@@ -53,24 +52,21 @@ func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http
 func (srv *ServerConfig) handlerUpdateBatch(w http.ResponseWriter, r *http.Request) {
 	batch := []metric.Metric{}
 	scanner := bufio.NewScanner(r.Body)
-	scanner.Split(custom.CustomSplit())
-	for scanner.Scan() {
-		m := metric.Metric{}
-		if err := json.Unmarshal(scanner.Bytes(), &m); err != nil {
-			err := clog.ToLog(clog.FuncName(), err)
-			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if _, err := srv.checkHash(m); err != nil {
+	scanner.Scan()
+	if err := json.Unmarshal(scanner.Bytes(), &batch); err != nil {
+		err := clog.ToLog(clog.FuncName(), err)
+		log.Println("111", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for i := range batch {
+		if _, err := srv.checkHash(batch[i]); err != nil {
 			err := clog.ToLog(clog.FuncName(), err)
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		m.Hash = ""
-		batch = append(batch, m)
+		batch[i].Hash = ""
 	}
 	if err := srv.Storage.UpdateBatch(batch); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
