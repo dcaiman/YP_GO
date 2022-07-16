@@ -3,7 +3,6 @@ package agent
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"math/rand"
 	"reflect"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/dcaiman/YP_GO/internal/clog"
 	"github.com/dcaiman/YP_GO/internal/metric"
-	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
@@ -52,7 +50,7 @@ func (agn *AgentConfig) createMetrics(mNames []string, mType string) error {
 
 func (agn *AgentConfig) poll() error {
 	for i := range agn.RuntimeGauges {
-		val := getRuntimeMetricValue(agn.RuntimeGauges[i])
+		val := agn.getRuntimeMetricValue(agn.RuntimeGauges[i])
 		m := metric.Metric{
 			ID:    agn.RuntimeGauges[i],
 			MType: Gauge,
@@ -63,7 +61,7 @@ func (agn *AgentConfig) poll() error {
 		}
 	}
 	for i := range agn.CustomGauges {
-		val, err := getCustomMetricValue(agn.CustomGauges[i])
+		val, err := agn.getCustomMetricValue(agn.CustomGauges[i])
 		if err != nil {
 			return clog.ToLog(clog.FuncName(), err)
 		}
@@ -121,13 +119,13 @@ func (agn *AgentConfig) report(sendBatch bool) error {
 	return nil
 }
 
-func getRuntimeMetricValue(name string) float64 {
+func (agn *AgentConfig) getRuntimeMetricValue(name string) float64 {
 	mem := &runtime.MemStats{}
 	runtime.ReadMemStats(mem)
 	return reflect.Indirect(reflect.ValueOf(mem)).FieldByName(name).Convert(reflect.TypeOf(0.0)).Float()
 }
 
-func getCustomMetricValue(name string) (float64, error) {
+func (agn *AgentConfig) getCustomMetricValue(name string) (float64, error) {
 	switch name {
 	case RandomValue:
 		return 100 * rand.Float64(), nil
@@ -145,19 +143,14 @@ func getCustomMetricValue(name string) (float64, error) {
 		return float64(vm.Free), nil
 	}
 	if strings.Contains(name, CPUutilization) {
-		vals, err := cpu.Percent(0, true)
-		if err != nil {
-			return 0, clog.ToLog(clog.FuncName(), err)
-		}
 		num, err := strconv.ParseInt(strings.TrimPrefix(name, CPUutilization), 10, 64)
 		if err != nil {
 			return 0, clog.ToLog(clog.FuncName(), err)
 		}
-		if int(num) > len(vals) {
+		if int(num) > len(agn.CpuUsage) {
 			return 0, clog.ToLog(clog.FuncName(), errors.New("cannot get <"+name+">: core number error"))
 		}
-		fmt.Println(name, num, vals, vals[num-1])
-		return vals[num-1], nil
+		return agn.CpuUsage[num-1], nil
 	}
 	return 0, clog.ToLog(clog.FuncName(), errors.New("cannot get: unsupported metric <"+name+">"))
 }
