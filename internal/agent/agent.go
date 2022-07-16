@@ -41,7 +41,7 @@ type AgentConfig struct {
 	RuntimeGauges []string
 	CustomGauges  []string
 	Counters      []string
-	CpuUsage      []float64
+	ProcUsage     []float64
 	Storage       metric.MStorage
 	Cfg           EnvConfig
 }
@@ -65,11 +65,11 @@ func RunAgent(agn *AgentConfig) {
 	for {
 		select {
 		case <-pollTimer.C:
-			cpuUsage, err := cpu.Percent(0, true)
+			procUsage, err := cpu.Percent(0, true)
 			if err != nil {
 				log.Println(clog.ToLog(clog.FuncName(), err))
 			}
-			agn.CpuUsage = cpuUsage
+			agn.ProcUsage = procUsage
 			if err := agn.poll(); err != nil {
 				log.Println(clog.ToLog(clog.FuncName(), err))
 			}

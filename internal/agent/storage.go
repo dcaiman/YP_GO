@@ -147,10 +147,10 @@ func (agn *AgentConfig) getCustomMetricValue(name string) (float64, error) {
 		if err != nil {
 			return 0, clog.ToLog(clog.FuncName(), err)
 		}
-		if int(num) > len(agn.CpuUsage) {
+		if int(num) > len(agn.ProcUsage) {
 			return 0, clog.ToLog(clog.FuncName(), errors.New("cannot get <"+name+">: core number error"))
 		}
-		return agn.CpuUsage[num-1], nil
+		return agn.ProcUsage[num-1], nil
 	}
 	return 0, clog.ToLog(clog.FuncName(), errors.New("cannot get: unsupported metric <"+name+">"))
 }
