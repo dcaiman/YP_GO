@@ -78,8 +78,8 @@ func (agn *AgentEnv) getStorageBatch() ([]byte, error) {
 	if err != nil {
 		return nil, clog.ToLog(clog.FuncName(), err)
 	}
-	if mj == nil {
-		return nil, clog.ToLog(clog.FuncName(), errors.New("empty batch"))
+	if reflect.DeepEqual(mj, []byte("[]")) {
+		return nil, clog.ToLog(clog.FuncName(), errors.New("cannot get storage batch: storage is empty"))
 	}
 	return mj, nil
 }
