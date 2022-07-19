@@ -52,7 +52,7 @@ func main() {
 		customGauges = append(customGauges, "CPUutilization"+fmt.Sprint(i))
 	}
 
-	agn := agent.AgentConfig{
+	agn := agent.AgentEnv{
 		Cfg: agent.EnvConfig{
 			CType:          agent.JSONCT,
 			PollInterval:   2 * time.Second,

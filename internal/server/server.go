@@ -32,12 +32,12 @@ type EnvConfig struct {
 	DropDB    bool
 }
 
-type ServerConfig struct {
+type ServerEnv struct {
 	Storage metric.MStorage
 	Cfg     EnvConfig
 }
 
-func RunServer(srv *ServerConfig) {
+func RunServer(srv *ServerEnv) {
 	if srv.Cfg.DBAddr != "" {
 		dbStorage, err := pgxstorage.New(srv.Cfg.DBAddr, srv.Cfg.DropDB)
 		if err != nil {
@@ -46,7 +46,7 @@ func RunServer(srv *ServerConfig) {
 		defer dbStorage.Close()
 		srv.Storage = dbStorage
 	} else if srv.Cfg.StoreFile != "" {
-		fileStorage := internalstorage.New(srv.Cfg.StoreFile, srv.Cfg.HashKey)
+		fileStorage := internalstorage.New(srv.Cfg.StoreFile)
 
 		if srv.Cfg.InitDownload {
 			err := fileStorage.DownloadStorage()
@@ -102,7 +102,7 @@ func RunServer(srv *ServerConfig) {
 	log.Println(http.ListenAndServe(srv.Cfg.SrvAddr, mainRouter))
 }
 
-func (srv *ServerConfig) GetExternalConfig() error {
+func (srv *ServerEnv) GetExternalConfig() error {
 	if srv.Cfg.ArgConfig {
 		flag.BoolVar(&srv.Cfg.InitDownload, "r", srv.Cfg.InitDownload, "initial download flag")
 		flag.StringVar(&srv.Cfg.StoreFile, "f", srv.Cfg.StoreFile, "storage file destination")

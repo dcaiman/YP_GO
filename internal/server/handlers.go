@@ -33,7 +33,7 @@ const (
 	HTTPStr     = "http://"
 )
 
-func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http.Request) {
+func (srv *ServerEnv) handlerCheckDBConnection(w http.ResponseWriter, r *http.Request) {
 	if err := srv.Storage.AccessCheck(r.Context()); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
 		log.Println(err.Error())
@@ -49,7 +49,7 @@ func (srv *ServerConfig) handlerCheckDBConnection(w http.ResponseWriter, r *http
 	}
 }
 
-func (srv *ServerConfig) handlerUpdateBatch(w http.ResponseWriter, r *http.Request) {
+func (srv *ServerEnv) handlerUpdateBatch(w http.ResponseWriter, r *http.Request) {
 	batch := []metric.Metric{}
 	scanner := bufio.NewScanner(r.Body)
 	scanner.Scan()
@@ -81,7 +81,7 @@ func (srv *ServerConfig) handlerUpdateBatch(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
+func (srv *ServerEnv) handlerUpdateJSON(w http.ResponseWriter, r *http.Request) {
 	mj, err := io.ReadAll(r.Body)
 	if err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
@@ -130,7 +130,7 @@ func (srv *ServerConfig) handlerUpdateJSON(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Request) {
+func (srv *ServerEnv) handlerUpdateDirect(w http.ResponseWriter, r *http.Request) {
 	mType := chi.URLParam(r, "type")
 	if err := checkTypeSupport(mType); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
@@ -176,7 +176,7 @@ func (srv *ServerConfig) handlerUpdateDirect(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (srv *ServerConfig) handlerGetAll(w http.ResponseWriter, r *http.Request) {
+func (srv *ServerEnv) handlerGetAll(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	t, err := template.New("").Parse(templateHandlerGetAll)
 	if err != nil {
@@ -195,7 +195,7 @@ func (srv *ServerConfig) handlerGetAll(w http.ResponseWriter, r *http.Request) {
 	t.Execute(w, allMetrics)
 }
 
-func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Request) {
+func (srv *ServerEnv) handlerGetMetricJSON(w http.ResponseWriter, r *http.Request) {
 	mjReq, err := io.ReadAll(r.Body)
 	if err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
@@ -249,7 +249,7 @@ func (srv *ServerConfig) handlerGetMetricJSON(w http.ResponseWriter, r *http.Req
 	w.Write(mjRes)
 }
 
-func (srv *ServerConfig) handlerGetMetric(w http.ResponseWriter, r *http.Request) {
+func (srv *ServerEnv) handlerGetMetric(w http.ResponseWriter, r *http.Request) {
 	mType := chi.URLParam(r, "type")
 	if err := checkTypeSupport(mType); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
@@ -296,7 +296,7 @@ func checkTypeSupport(mType string) error {
 	return clog.ToLog(clog.FuncName(), errors.New("unsupported type <"+mType+">"))
 }
 
-func (srv *ServerConfig) checkHash(m metric.Metric) (string, error) {
+func (srv *ServerEnv) checkHash(m metric.Metric) (string, error) {
 	tmp := m
 	h := m.Hash
 	m.UpdateHash(srv.Cfg.HashKey)

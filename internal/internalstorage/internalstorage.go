@@ -19,7 +19,7 @@ type MetricStorage struct {
 	Metrics  map[string]metric.Metric
 }
 
-func New(filePath, hashKey string) *MetricStorage {
+func New(filePath string) *MetricStorage {
 	ms := &MetricStorage{
 		Metrics:  map[string]metric.Metric{},
 		FilePath: filePath,

@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/dcaiman/YP_GO/internal/clog"
-	"github.com/dcaiman/YP_GO/internal/metric"
+	"github.com/dcaiman/YP_GO/internal/metric" //kek2
 )
 
 const (
@@ -42,13 +42,13 @@ type MetricStorage struct {
 }
 
 func New(dbAddr string, drop bool) (*MetricStorage, error) {
+	ms := &MetricStorage{}
+
 	tmpDB, err := sql.Open("pgx", dbAddr)
 	if err != nil {
 		return nil, clog.ToLog(clog.FuncName(), err)
 	}
-	ms := &MetricStorage{
-		DB: tmpDB,
-	}
+	ms.DB = tmpDB
 
 	if drop {
 		_, err := ms.DB.Exec(stDropTableIfExisis)
