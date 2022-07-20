@@ -38,6 +38,9 @@ func (st *MetricStorage) GetMetric(name string) (metric.Metric, error) {
 }
 
 func (st *MetricStorage) GetBatch() ([]metric.Metric, error) {
+	st.Lock()
+	defer st.Unlock()
+
 	allMetrics := []metric.Metric{}
 	for k := range st.Metrics {
 		allMetrics = append(allMetrics, st.Metrics[k])
@@ -79,6 +82,9 @@ func (st *MetricStorage) UpdateBatch(batch []metric.Metric) error {
 }
 
 func (st *MetricStorage) AccessCheck(ctx context.Context) error {
+	st.Lock()
+	defer st.Unlock()
+
 	if st.Metrics == nil {
 		return clog.ToLog(clog.FuncName(), errors.New("storage map is not initialized"))
 	}
