@@ -55,7 +55,7 @@ func (srv *ServerEnv) handlerUpdateBatch(w http.ResponseWriter, r *http.Request)
 	scanner.Scan()
 	if err := json.Unmarshal(scanner.Bytes(), &batch); err != nil {
 		err := clog.ToLog(clog.FuncName(), err)
-		log.Println("111", err.Error())
+		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
