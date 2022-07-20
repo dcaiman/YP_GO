@@ -12,7 +12,7 @@ import (
 	"github.com/dcaiman/YP_GO/internal/clog"
 )
 
-func (agn *AgentConfig) sendMetric(name string) error {
+func (agn *AgentEnv) sendMetric(name string) error {
 	var url, val string
 	var body []byte
 
@@ -60,7 +60,7 @@ func (agn *AgentConfig) sendMetric(name string) error {
 	return nil
 }
 
-func (agn *AgentConfig) sendBatch() error {
+func (agn *AgentEnv) sendBatch() error {
 	body, err := agn.getStorageBatch()
 	if err != nil {
 		return clog.ToLog(clog.FuncName(), err)

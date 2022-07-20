@@ -15,44 +15,6 @@ import (
 	"github.com/caarlos0/env"
 )
 
-var runtimeGauges = [...]string{
-	"Alloc",
-	"BuckHashSys",
-	"Frees",
-	"GCCPUFraction",
-	"GCSys",
-	"HeapAlloc",
-	"HeapIdle",
-	"HeapInuse",
-	"HeapObjects",
-	"HeapReleased",
-	"HeapSys",
-	"LastGC",
-	"Lookups",
-	"MCacheInuse",
-	"MCacheSys",
-	"MSpanInuse",
-	"MSpanSys",
-	"Mallocs",
-	"NextGC",
-	"NumForcedGC",
-	"NumGC",
-	"OtherSys",
-	"PauseTotalNs",
-	"StackInuse",
-	"StackSys",
-	"Sys",
-	"TotalAlloc",
-}
-
-var customGauges = [...]string{
-	"RandomValue",
-}
-
-var counters = [...]string{
-	"PollCount",
-}
-
 const (
 	Gauge       = "gauge"
 	Counter     = "counter"
@@ -74,45 +36,31 @@ type EnvConfig struct {
 	SendBatch bool
 }
 
-type AgentConfig struct {
-	Storage metric.MStorage
-	Cfg     EnvConfig
+type AgentEnv struct {
+	RuntimeGauges []string
+	CustomGauges  []string
+	Counters      []string
+	Storage       metric.MStorage
+	Cfg           EnvConfig
 }
 
-func RunAgent(agn *AgentConfig) {
+func RunAgent(agn *AgentEnv) {
 	log.Println("AGENT CONFIG: ", agn.Cfg)
 
-	fileStorage := internalstorage.New("", agn.Cfg.HashKey)
+	fileStorage := internalstorage.New("")
 	agn.Storage = fileStorage
 
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go agn.poll()
+	go agn.report()
 
-	pollTimer := time.NewTicker(agn.Cfg.PollInterval)
-	reportTimer := time.NewTicker(agn.Cfg.ReportInterval)
-
-	if err := agn.prepareStorage(); err != nil {
-		log.Println(clog.ToLog(clog.FuncName(), err))
-	}
-
-	for {
-		select {
-		case <-pollTimer.C:
-			if err := agn.poll(); err != nil {
-				log.Println(clog.ToLog(clog.FuncName(), err))
-			}
-		case <-reportTimer.C:
-			if err := agn.report(agn.Cfg.SendBatch); err != nil {
-				log.Println(clog.ToLog(clog.FuncName(), err))
-			}
-		case <-signalCh:
-			log.Println("EXIT")
-			os.Exit(0)
-		}
-	}
+	syscallCh := make(chan os.Signal, 1)
+	signal.Notify(syscallCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	<-syscallCh
+	log.Println("EXIT")
+	os.Exit(0)
 }
 
-func (agn *AgentConfig) GetExternalConfig() error {
+func (agn *AgentEnv) GetExternalConfig() error {
 	if agn.Cfg.ArgConfig {
 		flag.StringVar(&agn.Cfg.SrvAddr, "a", agn.Cfg.SrvAddr, "server address")
 		flag.DurationVar(&agn.Cfg.ReportInterval, "r", agn.Cfg.ReportInterval, "report interval")
